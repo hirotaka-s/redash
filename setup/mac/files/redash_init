@@ -1,0 +1,170 @@
+#!/bin/sh
+
+# Postgres
+POSTGRES_DIR=/usr/local/var/postgres
+PG_CTL_EXEC=/usr/local/bin/pg_ctl
+POSTGRES_PIDFILE=$POSTGRES_DIR/postmaster.pid
+POSTGRES_SERVER_LOG=$POSTGRES_DIR/server.log
+PGDATA=/usr/local/var/postgres
+
+# Supervisor
+SUPERVISORD_EXEC=/usr/local/bin/supervisord
+SUPERVISOR_CTLEXEC=/usr/local/bin/supervisorctl
+SUPERVISORD_PIDFILE=/usr/local/opt/redash/supervisord/supervisord.pid
+SUPERVISORD_CONFFILE=/usr/local/opt/redash/supervisord/supervisord.conf
+
+# redis-server
+REDIS_EXEC=/usr/local/bin/redis-server
+REDIS_CLIEXEC=/usr/local/bin/redis-cli
+REDIS_PIDFILE=/usr/local/var/run/redis_6379.pid
+REDIS_CONF="/usr/local/etc/redis/6379.conf"
+REDISPORT="6379"
+
+# Nginx
+NGINX_EXEC=/usr/local/bin/nginx
+NGINX_PIDFILE=/usr/local/var/run/nginx.pid
+NGINX_CONF_FILE=/usr/local/etc/nginx/nginx_redash_on_mac.conf
+
+
+case "$1" in
+    start)
+        # Postgres
+        if [ -f $POSTGRES_PIDFILE ]
+        then
+            echo "[Postgres] $POSTGRES_PIDFILE exists, process is already running or crashed"
+        else
+            echo "[Postgres] Starting Postgres..."
+            export PGDATA=$PGDATA
+            $PG_CTL_EXEC -l $POSTGRES_SERVER_LOG start
+        fi
+        # redis-server
+        if [ -f $REDIS_PIDFILE ]
+        then
+            echo "[Redis] $REDIS_PIDFILE exists, process is already running or crashed"
+        else
+            echo "[Redis] Starting Redis server..."
+            $REDIS_EXEC $REDIS_CONF
+        fi
+        # nginx
+        if [ -f $NGINX_PIDFILE ]
+        then
+            echo "[Nginx] $NGINX_PIDFILE exists, process is already running or crashed"
+        else
+            echo "[Nginx] Starting Nginx server..."
+            $NGINX_EXEC -c $NGINX_CONF_FILE
+        fi
+        # supervisord
+        if [ -f $SUPERVISORD_PIDFILE ]
+        then
+            echo "[Supervisor] $SUPERVISORD_PIDFILE exists, process is already running or crashed"
+        else
+            echo "[Supervisor] Starting supervisord..."
+            $SUPERVISORD_EXEC -c $SUPERVISORD_CONFFILE
+        fi
+        ;;
+    stop)
+        # Supervisord
+        if [ ! -f $SUPERVISORD_PIDFILE ]
+        then
+            echo "[Supervisor] $SUPERVISORD_PIDFILE does not exist, process is not running"
+        else
+            PID=$(cat $SUPERVISORD_PIDFILE)
+            echo "[Supervisor] Stopping ..."
+            $SUPERVISOR_CTLEXEC stop all &
+            wait $!
+            $SUPERVISOR_CTLEXEC shutdown
+            while [ -x $SUPERVISORD_PIDFILE ]
+            do
+                echo "[Supervisor] Waiting for supervisord to shutdown ..."
+                sleep 1
+            done
+            echo "[Supervisor] stopped"
+        fi
+        # Nginx
+        if [ ! -f $NGINX_PIDFILE ]
+        then
+            echo "[Nginx] $NGINX_PIDFILE does not exist, process is not running"
+        else
+            PID=$(cat $NGINX_PIDFILE)
+            echo "[Nginx] Stopping ..."
+            $NGINX_EXEC -s stop
+            while [ -x $NGINX_PIDFILE ]
+            do
+                echo "[Nginx] Waiting for Nginx to shutdown ..."
+                sleep 1
+            done
+            echo "[Nginx] stopped"
+        fi
+        # redis-server
+        if [ ! -f $REDIS_PIDFILE ]
+        then
+            echo "[Redis] $REDIS_PIDFILE does not exist, process is not running"
+        else
+            PID=$(cat $REDIS_PIDFILE)
+            echo "[Redis] Stopping ..."
+            $REDIS_CLIEXEC -p $REDISPORT shutdown
+            while [ -x $REDIS_PIDFILE ]
+            do
+                echo "[Redis] Waiting for Redis to shutdown ..."
+                sleep 1
+            done
+            echo "[Redis] stopped"
+        fi
+        # Postgres
+        if [ ! -f $POSTGRES_PIDFILE ]
+        then
+            echo "[Postgres] $POSTGRES_PIDFILE does not exist, process is not running"
+        else
+            PID=$(cat $POSTGRES_PIDFILE)
+            echo "[Postgres] Stopping ..."
+            export PGDATA=$PGDATA
+            $PG_CTL_EXEC -D $POSTGRES_DIR stop -s -m fast
+            while [ -x $POSTGRES_PIDFILE ]
+            do
+                echo "[Postgres] Waiting for Postgres to shutdown ..."
+                sleep 1
+            done
+            echo "[Postgres] stopped"
+        fi
+        ;;
+    status)
+        # Postgres
+        if [ ! -f $POSTGRES_PIDFILE ]
+        then
+            echo '[redash_init] Postgres is not running'
+        else
+            echo "[redash_init] Postgres is running ($(<$POSTGRES_PIDFILE))"
+        fi
+        
+        # Redis
+        if [ ! -f $REDIS_PIDFILE ]
+        then
+            echo '[redash_init] Redis is not running'
+        else
+            echo "[redash_init] Redis is running ($(<$REDIS_PIDFILE))"
+        fi
+        
+        # Nginx
+        if [ ! -f $NGINX_PIDFILE ]
+        then
+            echo '[redash_init] Nginx is not running'
+        else
+            echo "[redash_init] Nginx is running ($(<$NGINX_PIDFILE))"
+        fi
+
+        # Supervisor
+        if [ ! -f $SUPERVISORD_PIDFILE ]
+        then
+            echo '[redash_init] Supervisor is not running'
+        else
+            echo "[redash_init] Supervisor is running ($(<$SUPERVISORD_PIDFILE))"
+        fi
+        ;;
+    restart)
+        $0 stop
+        $0 start
+        ;;
+    *)
+        echo "Please use start, stop, restart or status as first argument"
+        ;;
+esac
