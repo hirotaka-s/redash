@@ -179,15 +179,18 @@
         'label': 'Created At',
         'map': 'created_at',
         'formatFunction': dateFormatter
-      },
-      {
+      }
+    ];
+    
+    if (!clientConfig.disableRefreshQueries) {
+      $scope.gridColumns.push({
         'label': 'Update Schedule',
         'map': 'schedule',
         'formatFunction': function (value) {
           return $filter('scheduleHumanize')(value);
         }
-      }
-    ];
+      });
+    }
 
     var refresh = function () {
       $scope.refresh_time = moment().add(1, 'minutes');

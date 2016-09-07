@@ -10,10 +10,6 @@ celery = Celery('redash',
                 include='redash.tasks')
 
 celery_schedule = {
-    'refresh_queries': {
-        'task': 'redash.tasks.refresh_queries',
-        'schedule': timedelta(seconds=30)
-    },
     'cleanup_tasks': {
         'task': 'redash.tasks.cleanup_tasks',
         'schedule': timedelta(minutes=5)
@@ -23,6 +19,12 @@ celery_schedule = {
         'schedule': timedelta(minutes=30)
     }
 }
+
+if not settings.FEATURE_DISABLE_REFRESH_QUERIES:
+    celery_schedule['refresh_queries'] = {
+        'task': 'redash.tasks.refresh_queries',
+        'schedule': timedelta(seconds=30)
+    }
 
 if settings.VERSION_CHECK:
     celery_schedule['version_check'] = {
