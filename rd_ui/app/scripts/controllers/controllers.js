@@ -35,10 +35,16 @@
         'label': 'Update Schedule',
         'map': 'schedule',
         'formatFunction': function (value) {
-          return $filter('scheduleHumanize')(value);
+          var scheduleValue = $filter('scheduleHumanize')(value);
+          if (clientConfig.disableRefreshQueries && scheduleValue !== 'Never') {
+            return scheduleValue + ' (Disabled)';
+          }
+          return scheduleValue;
         }
       }
     ];
+
+
 
     $scope.queries = [];
     $scope.$parent.term = $location.search().q;
@@ -130,7 +136,11 @@
         'label': 'Update Schedule',
         'map': 'schedule',
         'formatFunction': function (value) {
-          return $filter('scheduleHumanize')(value);
+          var scheduleValue = $filter('scheduleHumanize')(value);
+          if (clientConfig.disableRefreshQueries && scheduleValue !== 'Never') {
+            return scheduleValue + ' (Disabled)';
+          }
+          return scheduleValue;
         }
       }
     ]

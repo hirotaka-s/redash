@@ -205,8 +205,10 @@
           <!-- refresh schedule -->
           <span class="zmdi zmdi-refresh"></span>
           <span class="text-muted">Refresh Schedule</span>
-          <a ng-click="openScheduleForm()" ng-if="!query.isNew()">{{query.schedule | scheduleHumanize}}</a>
-          <span ng-if="query.isNew()">Never</span>
+          <a ng-click="openScheduleForm()" ng-if="!query.isNew()" ng-show="!disableRefreshQueries">{{query.schedule | scheduleHumanize}}</a>
+          <span ng-if="query.isNew()" ng-show="!disableRefreshQueries">Never</span>
+          <span ng-show="disableRefreshQueries && query.schedule"><strong>{{query.schedule | scheduleHumanize}} (Disabled)</strong></span>
+          <span ng-show="disableRefreshQueries && !query.schedule"><strong>{{query.schedule | scheduleHumanize}}</strong></span>
         </li>
         <li>
           <!-- last update -->
