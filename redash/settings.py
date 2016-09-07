@@ -209,6 +209,7 @@ DATE_FORMAT = os.environ.get("REDASH_DATE_FORMAT", "DD/MM/YY")
 FEATURE_ALLOW_ALL_TO_EDIT_QUERIES = parse_boolean(os.environ.get("REDASH_FEATURE_ALLOW_ALL_TO_EDIT", "true"))
 FEATURE_TABLES_PERMISSIONS = parse_boolean(os.environ.get("REDASH_FEATURE_TABLES_PERMISSIONS", "false"))
 VERSION_CHECK = parse_boolean(os.environ.get("REDASH_VERSION_CHECK", "true"))
+FEATURE_DISABLE_REFRESH_QUERIES = parse_boolean(os.environ.get("REDASH_FEATURE_DISABLE_REFRESH_QUERIES", "false"))
 
 # BigQuery
 BIGQUERY_HTTP_TIMEOUT = int(os.environ.get("REDASH_BIGQUERY_HTTP_TIMEOUT", "600"))
@@ -227,5 +228,6 @@ COMMON_CLIENT_CONFIG = {
     'dateTimeFormat': "{0} HH:mm".format(DATE_FORMAT),
     'allowAllToEditQueries': FEATURE_ALLOW_ALL_TO_EDIT_QUERIES,
     'mailSettingsMissing': MAIL_DEFAULT_SENDER is None,
+    'disableRefreshQueries': FEATURE_DISABLE_REFRESH_QUERIES,
     'logoUrl': LOGO_URL
 }

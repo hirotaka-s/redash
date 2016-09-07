@@ -201,7 +201,7 @@
           <span class="zmdi zmdi-format-align-justify"></span>
           <span class="text-muted">Rows </span><strong>{{queryResult.getData().length}}</strong>
         </li>
-        <li>
+        <li ng-if="!disableRefreshQueries">
           <!-- refresh schedule -->
           <span class="zmdi zmdi-refresh"></span>
           <span class="text-muted">Refresh Schedule</span>

@@ -316,6 +316,8 @@
       });
     };
 
+    $scope.disableRefreshQueries = clientConfig.disableRefreshQueries;
+
     $scope.showEmbedDialog = function(query, visualization) {
       $modal.open({
         templateUrl: '/views/dialogs/embed_code.html',

@@ -30,15 +30,18 @@
         'label': 'Created At',
         'map': 'created_at',
         'formatFunction': dateFormatter
-      },
-      {
+      }
+    ];
+
+    if (!clientConfig.disableRefreshQueries) {
+      $scope.gridColumns.push({
         'label': 'Update Schedule',
         'map': 'schedule',
         'formatFunction': function (value) {
           return $filter('scheduleHumanize')(value);
         }
-      }
-    ];
+      });
+    }
 
     $scope.queries = [];
     $scope.$parent.term = $location.search().q;
@@ -125,15 +128,18 @@
         'label': 'Last Executed At',
         'map': 'retrieved_at',
         'formatFunction': dateFormatter
-      },
-      {
+      }
+    ]
+    
+    if (!clientConfig.disableRefreshQueries) {
+      $scope.gridColumns.push({
         'label': 'Update Schedule',
         'map': 'schedule',
         'formatFunction': function (value) {
           return $filter('scheduleHumanize')(value);
         }
-      }
-    ]
+      });
+    }
 
     $scope.tabs = [
       {"name": "My Queries", "key": "my"},
