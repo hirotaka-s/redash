@@ -184,7 +184,11 @@
         'label': 'Update Schedule',
         'map': 'schedule',
         'formatFunction': function (value) {
-          return $filter('scheduleHumanize')(value);
+          var scheduleValue = $filter('scheduleHumanize')(value);
+          if (clientConfig.disableRefreshQueries && scheduleValue !== 'Never') {
+            return scheduleValue + ' (Disabled)';
+          }
+          return scheduleValue;
         }
       }
     ];
