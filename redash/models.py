@@ -586,7 +586,6 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
     runtime = peewee.FloatField()
     retrieved_at = DateTimeTZField()
     data_timestamp = DateTimeTZField()
-    interval_hours = peewee.IntegerField()
 
     class Meta:
         db_table = 'historical_query_results'
@@ -600,8 +599,7 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
             'data_source_id': self.data_source_id,
             'runtime': self.runtime,
             'retrieved_at': self.retrieved_at,
-            'data_timestamp': self.data_timestamp,
-            'interval_hours': self.interval_hours
+            'data_timestamp': self.data_timestamp
         }
 
     def __unicode__(self):
