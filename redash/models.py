@@ -576,7 +576,7 @@ def should_schedule_next(previous_iteration, now, schedule):
 
     return now > next_iteration
 
-class QueryResultStore(BaseModel, BelongsToOrgMixin):
+class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
     id = peewee.PrimaryKeyField()
     org = peewee.ForeignKeyField(Organization)
     data_source = peewee.ForeignKeyField(DataSource)
@@ -585,11 +585,11 @@ class QueryResultStore(BaseModel, BelongsToOrgMixin):
     data = peewee.TextField()
     runtime = peewee.FloatField()
     retrieved_at = DateTimeTZField()
-    timestamp = DateTimeTZField()
+    data_timestamp = DateTimeTZField()
     interval_hours = peewee.IntegerField()
 
     class Meta:
-        db_table = 'query_results_store'
+        db_table = 'historical_query_results'
 
     def to_dict(self):
         return {
@@ -600,7 +600,7 @@ class QueryResultStore(BaseModel, BelongsToOrgMixin):
             'data_source_id': self.data_source_id,
             'runtime': self.runtime,
             'retrieved_at': self.retrieved_at,
-            'timestamp': self.timestamp,
+            'data_timestamp': self.data_timestamp,
             'interval_hours': self.interval_hours
         }
 
