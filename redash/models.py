@@ -576,6 +576,43 @@ def should_schedule_next(previous_iteration, now, schedule):
 
     return now > next_iteration
 
+class QueryResultStore(BaseModel, BelongsToOrgMixin):
+    id = peewee.PrimaryKeyField()
+    org = peewee.ForeignKeyField(Organization)
+    data_source = peewee.ForeignKeyField(DataSource)
+    query_hash = peewee.CharField(max_length=32, index=True)
+    query = peewee.TextField()
+    data = peewee.TextField()
+    runtime = peewee.FloatField()
+    retrieved_at = DateTimeTZField()
+    timestamp = DateTimeTZField()
+    interval = peewee.IntegerField()
+    interval_units = peewee.CharField(max_length=10)
+
+    class Meta:
+        db_table = 'query_results_store'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'query_hash': self.query_hash,
+            'query': self.query,
+            'data': json.loads(self.data),
+            'data_source_id': self.data_source_id,
+            'runtime': self.runtime,
+            'retrieved_at': self.retrieved_at,
+            'timestamp': self.timestamp,
+            'interval': self.interval,
+            'interval_units': self.interval_units
+        }
+
+    def __unicode__(self):
+        return u"%d | %s | %s" % (self.id, self.query_hash, self.retrieved_at)
+
+    @property
+    def groups(self):
+        return self.data_source.groups
+
 
 class Query(ModelTimestampsMixin, BaseModel, BelongsToOrgMixin):
     id = peewee.PrimaryKeyField()
