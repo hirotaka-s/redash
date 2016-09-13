@@ -586,8 +586,7 @@ class QueryResultStore(BaseModel, BelongsToOrgMixin):
     runtime = peewee.FloatField()
     retrieved_at = DateTimeTZField()
     timestamp = DateTimeTZField()
-    interval = peewee.IntegerField()
-    interval_units = peewee.CharField(max_length=10)
+    interval_hours = peewee.IntegerField()
 
     class Meta:
         db_table = 'query_results_store'
@@ -602,8 +601,7 @@ class QueryResultStore(BaseModel, BelongsToOrgMixin):
             'runtime': self.runtime,
             'retrieved_at': self.retrieved_at,
             'timestamp': self.timestamp,
-            'interval': self.interval,
-            'interval_units': self.interval_units
+            'interval_hours': self.interval_hours
         }
 
     def __unicode__(self):
