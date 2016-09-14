@@ -576,6 +576,24 @@ def should_schedule_next(previous_iteration, now, schedule):
 
     return now > next_iteration
 
+class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
+    id = peewee.PrimaryKeyField()
+    org = peewee.ForeignKeyField(Organization)
+    data_source = peewee.ForeignKeyField(DataSource)
+    query_hash = peewee.CharField(max_length=32, index=True)
+    query = peewee.TextField()
+    data = peewee.TextField()
+    runtime = peewee.FloatField()
+    retrieved_at = DateTimeTZField()
+    data_timestamp = DateTimeTZField()
+
+    class Meta:
+        db_table = 'historical_query_results'
+
+
+    def __unicode__(self):
+        return u"%d | %s | %s" % (self.id, self.query_hash, self.retrieved_at)
+
 
 class Query(ModelTimestampsMixin, BaseModel, BelongsToOrgMixin):
     id = peewee.PrimaryKeyField()
