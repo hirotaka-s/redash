@@ -590,24 +590,9 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
     class Meta:
         db_table = 'historical_query_results'
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'query_hash': self.query_hash,
-            'query': self.query,
-            'data': json.loads(self.data),
-            'data_source_id': self.data_source_id,
-            'runtime': self.runtime,
-            'retrieved_at': self.retrieved_at,
-            'data_timestamp': self.data_timestamp
-        }
 
     def __unicode__(self):
         return u"%d | %s | %s" % (self.id, self.query_hash, self.retrieved_at)
-
-    @property
-    def groups(self):
-        return self.data_source.groups
 
 
 class Query(ModelTimestampsMixin, BaseModel, BelongsToOrgMixin):
