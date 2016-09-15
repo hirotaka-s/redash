@@ -590,6 +590,32 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
     class Meta:
         db_table = 'historical_query_results'
 
+    @classmethod
+    def store_result(cls, org_id, data_source_id, query_hash, query, data, run_time, retrieved_at, data_timestamp):
+        query_result = None
+        old_query_result = cls.select().where(cls.org == org_id,
+                                              cls.query_hash == query_hash, 
+                                              cls.data_source == data_source_id, 
+                                              cls.data_timestamp == data_timestamp).first()
+          
+        if not old_query_result:
+            query_result = cls.create(org=org_id,
+                                      query_hash=query_hash,
+                                      query=query,
+                                      runtime=run_time,
+                                      data_source=data_source_id,
+                                      retrieved_at=retrieved_at,
+                                      data_timestamp=data_timestamp,
+                                      data=data)
+            logging.info("Inserted query (%s) data; id=%s", query_hash, query_result.id)
+        else:
+            old_query_result.data = data
+            old_query_result.runtime = run_time
+            old_query_result.retrieved_at = retrieved_at
+            old_query_result.save()
+            logging.info("Updated query (%s) data; id=%s", query_hash, old_query_result.id)
+
+        return query_result
 
     def __unicode__(self):
         return u"%d | %s | %s" % (self.id, self.query_hash, self.retrieved_at)
