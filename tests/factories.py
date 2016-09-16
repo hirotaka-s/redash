@@ -97,6 +97,16 @@ query_result_factory = ModelFactory(redash.models.QueryResult,
                                     data_source=data_source_factory.create,
                                     org=1)
 
+historical_query_result_factory = ModelFactory(redash.models.HistoricalQueryResult,
+                                               data='{"columns":{}, "rows":[]}',
+                                               runtime=1,
+                                               retrieved_at=utcnow,
+                                               query="SELECT 1",
+                                               query_hash=gen_query_hash('SELECT 1'),
+                                               data_source=data_source_factory.create,
+                                               org=1,
+                                               data_timestamp=utcnow)
+
 visualization_factory = ModelFactory(redash.models.Visualization,
                                      type='CHART',
                                      query=query_factory.create,
@@ -241,6 +251,18 @@ class Factory(object):
         return query_with_params_factory.create(**args)
 
     def create_query_result(self, **kwargs):
+        args = {
+            'data_source': self.data_source,
+        }
+
+        args.update(kwargs)
+
+        if 'data_source' in args and 'org' not in args:
+            args['org'] = args['data_source'].org_id
+
+        return query_result_factory.create(**args)
+
+    def create_historical_query_result(self, **kwargs):
         args = {
             'data_source': self.data_source,
         }

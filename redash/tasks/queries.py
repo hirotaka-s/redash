@@ -407,7 +407,7 @@ class QueryExecutor(object):
             
             base_query = models.Query.get_by_id(self.metadata['Query ID']).query;
             if self.metadata.get("Data Timestamp", None):
-                res = models.HistoricalQueryResult.store_result(self.data_source.org_id, self.data_source.id,
+                models.HistoricalQueryResult.store_result(self.data_source.org_id, self.data_source.id,
                                                           utils.gen_query_hash(base_query), base_query, data,
                                                           run_time, utils.utcnow(), self.metadata["Data Timestamp"])
 

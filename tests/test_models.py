@@ -522,6 +522,63 @@ class TestQueryResultStoreResult(BaseTestCase):
         self.assertNotEqual(models.Query.get_by_id(query3.id)._data['latest_query_data'], query_result.id)
 
 
+class TestQueryResultStoreHistoricalResult(BaseTestCase):
+    def setUp(self):
+        super(TestQueryResultStoreHistoricalResult, self).setUp()
+        self.data_source = self.factory.data_source
+        self.query = "SELECT 1"
+        self.query_hash = gen_query_hash(self.query)
+        self.runtime = 123
+        self.utcnow = utcnow()
+        self.data = "data"
+        self.data_timestamp = utcnow().replace(second=0, microsecond=0)
+
+    def test_stores_the_result(self):
+        query_result = models.HistoricalQueryResult.store_result(self.data_source.org_id, self.data_source.id, self.query_hash,
+                                                                    self.query, self.data, self.runtime, 
+                                                                    self.utcnow, self.data_timestamp)
+
+        self.assertEqual(query_result.data, self.data)
+        self.assertEqual(query_result.runtime, self.runtime)
+        self.assertEqual(query_result.retrieved_at, self.utcnow)
+        self.assertEqual(query_result.query, self.query)
+        self.assertEqual(query_result.query_hash, self.query_hash)
+        self.assertEqual(query_result.data_source, self.data_source)
+        self.assertEqual(query_result.data_timestamp, self.data_timestamp)
+
+    def test_updates_existing_queries(self):
+        runtime_ = 1234
+        utcnow_ = utcnow()
+        data_ = "data_"
+
+        query_result = models.HistoricalQueryResult.store_result(self.data_source.org_id, self.data_source.id, self.query_hash,
+                                                                 self.query, data_, runtime_,
+                                                                 utcnow_, self.data_timestamp)
+
+        self.assertEqual(query_result.data, data_)
+        self.assertEqual(query_result.runtime, runtime_)
+        self.assertEqual(query_result.retrieved_at, utcnow_)
+        self.assertEqual(query_result.query, self.query)
+        self.assertEqual(query_result.query_hash, self.query_hash)
+        self.assertEqual(query_result.data_source, self.data_source)
+        self.assertEqual(query_result.data_timestamp, self.data_timestamp)
+
+    def test_stores_the_query_result_with_different_data_timestamp(self):
+        data_timestamp_ = self.data_timestamp + datetime.timedelta(hours=3)
+
+        query_result = models.HistoricalQueryResult.store_result(self.data_source.org_id, self.data_source.id, self.query_hash,
+                                                                 self.query, self.data, self.runtime,
+                                                                 self.utcnow, data_timestamp_)
+
+        self.assertEqual(query_result.data, self.data)
+        self.assertEqual(query_result.runtime, self.runtime)
+        self.assertEqual(query_result.retrieved_at, self.utcnow)
+        self.assertEqual(query_result.query, self.query)
+        self.assertEqual(query_result.query_hash, self.query_hash)
+        self.assertEqual(query_result.data_source, self.data_source)
+        self.assertEqual(query_result.data_timestamp, data_timestamp_)
+
+
 class TestEvents(BaseTestCase):
     def raw_event(self):
         timestamp = 1411778709.791
