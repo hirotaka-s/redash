@@ -404,13 +404,6 @@ class QueryExecutor(object):
             query_result, updated_query_ids = models.QueryResult.store_result(self.data_source.org_id, self.data_source.id,
                                                                               self.query_hash, self.query, data,
                                                                               run_time, utils.utcnow())
-            
-            base_query = models.Query.get_by_id(self.metadata['Query ID']).query;
-            if self.metadata.get("Data Timestamp", None):
-                models.HistoricalQueryResult.store_result(self.data_source.org_id, self.data_source.id,
-                                                          utils.gen_query_hash(base_query), base_query, data,
-                                                          run_time, utils.utcnow(), self.metadata["Data Timestamp"])
-
             self._log_progress('checking_alerts')
             for query_id in updated_query_ids:
                 check_alerts_for_query.delay(query_id)

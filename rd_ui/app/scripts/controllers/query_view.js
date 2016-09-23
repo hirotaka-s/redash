@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  function QueryViewCtrl($scope, Events, $route, $location, notifications, growl, $modal, Query, DataSource) {
+  function QueryViewCtrl($scope, Events, $route, $location, notifications, growl, $modal, Query, DataSource, HistoricalQueryResult) {
     var DEFAULT_TAB = 'table';
 
     var getQueryResult = function(maxAge) {
@@ -338,9 +338,22 @@
       }
       $scope.selectedTab = hash || DEFAULT_TAB;
     });
+    
+    $scope.$watch('queryExecuting', function(now, old) {
+      if (now) {
+        var maxAge = $location.search()['maxAge'] || -1;
+        console.log(maxAge);
+        var parameters = $scope.query.getParameters();
+        var query_text = Mustache.render($scope.query.query, parameters.getValues());
+
+        HistoricalQueryResult.storeQueryResult($scope.query.data_source_id,
+            $scope.queryResult.job.id, maxAge, $scope.query.id, query_text, parameters);
+      }
+    });
   };
+    
 
   angular.module('redash.controllers')
     .controller('QueryViewCtrl',
-      ['$scope', 'Events', '$route', '$location', 'notifications', 'growl', '$modal', 'Query', 'DataSource', QueryViewCtrl]);
+      ['$scope', 'Events', '$route', '$location', 'notifications', 'growl', '$modal', 'Query', 'DataSource', 'HistoricalQueryResult', QueryViewCtrl]);
 })();

@@ -403,14 +403,13 @@
       return this.deferred.promise;
     }
 
-    QueryResult.get = function (data_source_id, query, maxAge, queryId, __timestamp) {
+    QueryResult.get = function (data_source_id, query, maxAge, queryId) {
       var queryResult = new QueryResult();
 
       var params = {'data_source_id': data_source_id, 'query': query, 'max_age': maxAge};
       if (queryId !== undefined) {
         params['query_id'] = queryId;
       };
-      params['__timestamp'] = __timestamp
 
       QueryResultResource.post(params, function (response) {
         queryResult.update(response);
@@ -522,7 +521,7 @@
           this.queryResult = QueryResult.getById(this.latest_query_data_id);
         }
       } else if (this.data_source_id) {
-        this.queryResult = QueryResult.get(this.data_source_id, queryText, maxAge, this.id, parameters.getValues()['__timestamp']);
+        this.queryResult = QueryResult.get(this.data_source_id, queryText, maxAge, this.id);
       } else {
         return new QueryResultError("Please select data source to run this query.");
       }
@@ -795,6 +794,108 @@
     return WidgetResource;
   }
 
+  var HistoricalQueryResult = function ($resource, $timeout, $q) {
+    var HistoricalQueryResultResource = $resource('api/historical_query_results/:id', {id: '@id'}, {'post': {'method': 'POST'}});
+    var Job = $resource('api/store_jobs/:id', {id: '@id'});
+
+    var updateFunction = function (props) {
+      angular.extend(this, props);
+      if ('historical_query_results' in props) {
+        this.status = "done";
+        console.log('results: %O', props)
+        
+        this.deferred.resolve(this);
+      } else if (this.job.status == 3) {
+        this.status = "processing";
+      } else {
+        this.status = undefined;
+      }
+    };
+
+    var statuses = {
+      1: "waiting",
+      2: "processing",
+      3: "done",
+      4: "failed"
+    }
+    
+    HistoricalQueryResult.prototype.update = updateFunction;
+
+    HistoricalQueryResult.prototype.getStatus = function () {
+      return this.status || statuses[this.job.status];
+    }
+    
+    function HistoricalQueryResult(props) {
+      this.deferred = $q.defer();
+      this.job = {};
+      this.historical_query_results = {};
+      this.status = "waiting";
+
+      this.updatedAt = moment();
+
+      if (props) {
+        updateFunction.apply(this, [props]);
+      }
+    }
+
+    var refreshStatus = function (historicalQueryResult) {
+      Job.get({'id': historicalQueryResult.job.id}, function (response) {
+        historicalQueryResult.update(response);
+        console.log('Historical job: %O', response)
+
+        if (historicalQueryResult.getStatus() == "processing" && historicalQueryResult.job.store_result_id && historicalQueryResult.job.store_result_id != "None") {
+          HistoricalQueryResultResource.get({'id': historicalQueryResult.job.store_result_id}, function (response) {
+            historicalQueryResult.update(response);
+          });
+        } else if (historicalQueryResult.getStatus() != "failed") {
+          $timeout(function () {
+            refreshStatus(historicalQueryResult);
+          }, 3000);
+        }
+      }, function(error) {
+        console.log("Connection error", error);
+        historicalQueryResult.update({job: {error: 'failed communicating with server. Please check your Internet connection and try again.', status: 4}})
+      });
+    }
+
+    HistoricalQueryResult.storeQueryResult = function (data_source_id, taskId, maxAge, queryId, query_text, parameters) {
+      var historicalQueryResult = new HistoricalQueryResult();
+      
+      var data_timestamp = parameters.getValues()['__timestamp'];
+      
+      if (data_timestamp) {
+        var params = {'data_source_id': data_source_id, 'task_id': taskId, 'max_age': maxAge, 'data_timestamp': data_timestamp, 'query_text': query_text};
+        if (queryId !== undefined) {
+          params['query_id'] = queryId;
+        };
+
+        HistoricalQueryResultResource.post(params, function (response) {
+          historicalQueryResult.update(response);
+
+          if ('job' in response) {
+            refreshStatus(historicalQueryResult);
+          }
+        }, function(error) {
+          if (error.status === 403) {
+            historicalQueryResult.update(error.data);
+          } else if (error.status === 400) {
+            historicalQueryResult.update(error.data);
+          } else {
+            console.log("Unknown error", error);
+            historicalQueryResult.update({job: {error: 'unknown error occurred. Please try again later.', status: 4}})
+          }
+        });
+
+        return historicalQueryResult;
+      }
+
+      return;
+    };
+
+    return HistoricalQueryResult;
+  };
+
+
   angular.module('redash.services')
       .factory('QueryResult', ['$resource', '$timeout', '$q', QueryResult])
       .factory('Query', ['$resource', '$location', 'QueryResult', Query])
@@ -805,5 +906,6 @@
       .factory('Widget', ['$resource', 'Query', Widget])
       .factory('User', ['$resource', '$http', User])
       .factory('Group', ['$resource', Group])
+      .factory('HistoricalQueryResult', ['$resource', '$timeout', '$q', HistoricalQueryResult])
       .factory('QuerySnippet', ['$resource', QuerySnippet]);
 })();

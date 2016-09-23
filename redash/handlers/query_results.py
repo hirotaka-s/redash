@@ -20,7 +20,7 @@ def error_response(message):
     return {'job': {'status': 4, 'error': message}}, 400
 
 
-def run_query(data_source, parameter_values, query_text, query_id, max_age=0, data_timestamp=None):
+def run_query(data_source, parameter_values, query_text, query_id, max_age=0):
     query_parameters = set(collect_query_parameters(query_text))
     missing_params = set(query_parameters) - set(parameter_values.keys())
     if missing_params:
@@ -45,7 +45,7 @@ def run_query(data_source, parameter_values, query_text, query_id, max_age=0, da
     if query_result:
         return {'query_result': query_result.to_dict()}
     else:
-        job = enqueue_query(query_text, data_source, metadata={"Username": current_user.name, "Query ID": query_id, "Data Timestamp": data_timestamp})
+        job = enqueue_query(query_text, data_source, metadata={"Username": current_user.name, "Query ID": query_id})
         return {'job': job.to_dict()}
 
 
@@ -61,8 +61,6 @@ class QueryResultListResource(BaseResource):
 
         data_source = models.DataSource.get_by_id_and_org(params.get('data_source_id'), self.current_org)
 
-        data_timestamp = params.get('__timestamp', None)
-
         if not has_access(data_source.groups, self.current_user, not_view_only):
             return {'job': {'status': 4, 'error': 'You do not have permission to run queries with this data source.'}}, 403
 
@@ -74,7 +72,7 @@ class QueryResultListResource(BaseResource):
             'query': query
         })
 
-        return run_query(data_source, parameter_values, query, query_id, max_age, data_timestamp)
+        return run_query(data_source, parameter_values, query, query_id, max_age)
 
 
 ONE_YEAR = 60 * 60 * 24 * 365.25

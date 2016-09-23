@@ -590,6 +590,18 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
     class Meta:
         db_table = 'historical_query_results'
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'query_hash': self.query_hash,
+            'query': self.query,
+            'data': json.loads(self.data),
+            'data_source_id': self.data_source_id,
+            'runtime': self.runtime,
+            'retrieved_at': self.retrieved_at,
+            'data_timestamp': self.data_timestamp
+        }
+
     @classmethod
     def store_result(cls, org_id, data_source_id, query_hash, query, data, run_time, retrieved_at, data_timestamp):
         query_result = None
@@ -615,8 +627,15 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
             updating_query_result.runtime = run_time
             updating_query_result.retrieved_at = retrieved_at
             updating_query_result.save()
-            logging.info("Updated query (%s) data; id=%s", query_hash, old_query_result.id)
+            logging.info("Updated query (%s) data; id=%s", query_hash, updating_query_result.id)
             return updating_query_result
+
+    @classmethod
+    def get_historical_results_by_hash_and_org(cls, query_hash, org_id):
+        queries = cls.select().where(cls.query_hash == query_hash,
+                                   cls.org == org_id).order_by(cls.data_timestamp.desc())
+
+        return list(queries)
 
 
 
