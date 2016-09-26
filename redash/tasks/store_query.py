@@ -2,13 +2,17 @@ import logging
 import time
 import signal
 import redis
+import pystache
+from dateutil.relativedelta import relativedelta
+
 from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
-from redash import redis_connection, models, utils, settings
+
+from redash import redis_connection, models, statsd_client, settings, utils
 from redash.utils import gen_query_hash
 from redash.worker import celery
 from .base import BaseTask
-from .queries import QueryTaskTracker, QueryTask, signal_handler
+from .queries import QueryTaskTracker, QueryTask, signal_handler, enqueue_query
 
 logger = get_task_logger(__name__)
 
@@ -93,7 +97,7 @@ class StoreTask(QueryTask):
 
     
 
-def enqueue_store_task(data_source, template_query_text, query_text, data_timestamp, query_task_id):
+def enqueue_store_task(data_source, template_query_text, query_text, data_timestamp, query_task_id, scheduled=False):
     query_hash = gen_query_hash(query_text)
     logging.info("Storing hisotrical query result for %s with data_timestamp=%s", query_hash, data_timestamp)
     job = None
@@ -115,7 +119,10 @@ def enqueue_store_task(data_source, template_query_text, query_text, data_timest
         if not job:
             pipe.multi()
 
-            queue_name = data_source.queue_name
+            if scheduled:
+                queue_name = data_source.scheduled_queue_name
+            else:
+                queue_name = data_source.queue_name
 
             result = store_historical_query_result.apply_async(args=(data_source, template_query_text, query_text, data_timestamp, query_task_id), queue=queue_name)
             job = StoreTask(async_result=result)
@@ -133,7 +140,85 @@ def enqueue_store_task(data_source, template_query_text, query_text, data_timest
         logging.error("[Manager][%s] Failed adding job for store.", template_query_hash)
 
     return job
+
+ONE_DAY = 24 * 60 * 60
+
+def retrieve_next_date_timestamp(query):
+    latest_history = models.HistoricalQueryResult.get_latest(query.data_source, query.query_hash)
+    next_data_timestamp = None
+
+    if latest_history is not None:
+        latest_data_timestamp = latest_history.data_timestamp
+        schedule = query.schedule
+        if schedule.isdigit():
+            ttl = int(schedule)
+            if ttl == models.ONE_MONTH:
+                next_data_timestamp = latest_data_timestamp + relativedelta(months=1)
+            else:
+                next_data_timestamp = latest_data_timestamp + relativedelta(seconds=ttl)
+        else:
+            if (utils.utcnow() - latest_data_timestamp).total_seconds() > ONE_DAY:
+                next_data_timestamp = latest_data_timestamp + relativedelta(days=1)
+
+    return next_data_timestamp
         
+
+def create_parameter_values(parameters):
+    parameter_values = {}
+
+    for parameter in parameters:
+        parameter_values[parameter['name']] = parameter['value']
+
+    return parameter_values
+
+
+@celery.task(name="redash.tasks.store_scheduled_query_results", base=BaseTask)
+def store_scheduled_query_results():
+    logger.info("Storing scheduled query results...")
+
+    outdated_queries_count = 0
+    query_ids = []
+
+    with statsd_client.timer('manager.outdated_queries_lookup'):
+        for query in models.Query.outdated_storing_queries():
+            if settings.FEATURE_DISABLE_REFRESH_QUERIES: 
+                logging.info("Disabled refresh queries, skip storing.")
+            elif query.data_source.paused:
+                logging.info("Skipping refresh of %s because datasource - %s is paused (%s).", query.id, query.data_source.name, query.data_source.pause_reason)
+            else:
+                parameters = query.options['parameters']
+                parameter_values = create_parameter_values(parameters)
+                if '__timestamp' in parameter_values:
+                    refresh_interval = query.schedule
+                    next_data_timestamp = retrieve_next_date_timestamp(query)
+                    if next_data_timestamp is not None:
+                        parameter_values['__timestamp'] = next_data_timestamp
+
+                query_text = pystache.render(query.query, parameter_values)
+                    
+                job = enqueue_query(query_text, query.data_source,
+                              scheduled=True,
+                              metadata={'Query ID': query.id, 'Username': 'Scheduled'})
+                enqueue_store_task(query.data_source, query.query, query_text, parameter_values['__timestamp'], job.to_dict()['id'], scheduled=True)
+
+            query_ids.append(query.id)
+            outdated_queries_count += 1
+
+    statsd_client.gauge('manager.outdated_queries', outdated_queries_count)
+
+    logger.info("Done refreshing queries. Found %d outdated queries: %s" % (outdated_queries_count, query_ids))
+
+    status = redis_connection.hgetall('redash:status')
+    now = time.time()
+
+    redis_connection.hmset('redash:status', {
+        'outdated_queries_count': outdated_queries_count,
+        'last_refresh_at': now,
+        'query_ids': json.dumps(query_ids)
+    })
+
+    statsd_client.gauge('manager.seconds_since_refresh', now - float(status.get('last_refresh_at', now)))
+
 
 class StoreExecutor(object):
     def __init__(self, task, data_source, template_query_text, query_text, data_timestamp, query_task_id):
@@ -163,8 +248,8 @@ class StoreExecutor(object):
             break
 
         
-        latest_query_result_id = models.QueryResult.get_latest(self.data_source, self.query_text).id
-        data = models.QueryResult.get_by_id(latest_query_result_id)
+        latest_query_data_id = models.QueryResult.get_latest(self.data_source, self.query_text).id
+        data = models.QueryResult.get_by_id(latest_query_data_id)
 
         store_result = models.HistoricalQueryResult.store_result(data.org,
                                                                  data.data_source,
@@ -173,7 +258,9 @@ class StoreExecutor(object):
                                                                  data.data,
                                                                  data.runtime,
                                                                  data.retrieved_at,
-                                                                 self.data_timestamp)
+                                                                 self.data_timestamp,
+                                                                 self.template_query_hash,
+                                                                 latest_query_data_id)
         _unlock_store_job_lock(self.query_text, self.data_source.id, self.data_timestamp)
         run_time = time.time() - self.tracker.started_at
         self.tracker.update(run_time=run_time, state='finished')

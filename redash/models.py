@@ -22,6 +22,8 @@ from redash.metrics.database import MeteredPostgresqlExtDatabase, MeteredModel
 from redash.utils import generate_token
 from redash.utils.configuration import ConfigurationContainer
 
+from dateutil.relativedelta import relativedelta
+
 
 class Database(object):
     def __init__(self):
@@ -576,6 +578,29 @@ def should_schedule_next(previous_iteration, now, schedule):
 
     return now > next_iteration
 
+
+ONE_MONTH = 60 * 60* 24 * 30
+
+def should_store_scheduled_next(previous_iteration, now, schedule):
+    if schedule.isdigit():
+        ttl = int(schedule)
+        if ttl == ONE_MONTH:
+            next_iteration = previous_iteration + relativedelta(months=1)
+        else:
+            next_iteration = previous_iteration + relativedelta(seconds=ttl)
+    else:
+        hour, minute = schedule.split(':')
+        hour, minute = int(hour), int(minute)
+
+        normalized_previous_iteration = previous_iteration.replace(hour=hour, minute=minute)
+        if normalized_previous_iteration > previous_iteration:
+            previous_iteration = normalized_previous_iteration - relativedelta(days=1)
+
+        next_iteration = (previous_iteration + relativedelta(days=1)).replace(hour=hour, minute=minute)
+    
+    return now > next_iteration
+
+
 class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
     id = peewee.PrimaryKeyField()
     org = peewee.ForeignKeyField(Organization)
@@ -603,13 +628,13 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
         }
 
     @classmethod
-    def store_result(cls, org_id, data_source_id, query_hash, query, data, run_time, retrieved_at, data_timestamp):
+    def store_result(cls, org_id, data_source_id, query_hash, query, data, run_time, retrieved_at, data_timestamp, template_query_hash, latest_query_data_id):
         query_result = None
         updating_query_result = cls.select().where(cls.org == org_id,
                                               cls.query_hash == query_hash, 
                                               cls.data_source == data_source_id, 
                                               cls.data_timestamp == data_timestamp)\
-                                       .first()
+                                            .first()
           
         if not updating_query_result:
             query_result = cls.create(org=org_id,
@@ -621,14 +646,22 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
                                       data_timestamp=data_timestamp,
                                       data=data)
             logging.info("Inserted query (%s) data; id=%s", query_hash, query_result.id)
-            return query_result
         else:
             updating_query_result.data = data
             updating_query_result.runtime = run_time
             updating_query_result.retrieved_at = retrieved_at
             updating_query_result.save()
             logging.info("Updated query (%s) data; id=%s", query_hash, updating_query_result.id)
-            return updating_query_result
+            query_result =  updating_query_result
+        
+        updated_count = Query.update(latest_query_data=latest_query_data_id)\
+                             .where(Query.query_hash==query_hash,
+                                    Query.data_source==data_source_id)\
+                             .execute()
+
+        logging.info("Stored result (latest_query_data:%s, query_hash:%s, data_timestamp: %s).", latest_query_data_id, query_hash, data_timestamp)
+        
+        return query_result
 
     @classmethod
     def get_historical_results_by_hash_and_org(cls, query_hash, org_id):
@@ -637,6 +670,13 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
 
         return list(queries)
 
+    @classmethod
+    def get_latest(cls, data_source, query_hash):
+        historical_results = cls.select().where(cls.query_hash == query_hash,
+                                                cls.data_source == data_source) \
+                                          .order_by(cls.data_timestamp.desc())
+
+        return historical_results.first() if len(list(historical_results)) > 0 else None
 
 
     def __unicode__(self):
@@ -740,6 +780,22 @@ class Query(ModelTimestampsMixin, BaseModel, BelongsToOrgMixin):
                 outdated_queries[key] = query
 
         return outdated_queries.values()
+
+    @classmethod
+    def outdated_storing_queries(cls):
+        queries = cls.select(cls, QueryResult.retrieved_at, DataSource)\
+            .join(QueryResult)\
+            .switch(Query).join(DataSource)\
+            .where(cls.schedule != None)
+
+        now = utils.utcnow()
+        outdated_storing_queries = {}
+        for query in queries:
+            if should_store_scheduled_next(query.latest_query_data.retrieved_at, now, query.schedule):
+                key = "{}:{}".format(query.query_hash, query.data_source.id)
+                outdated_storing_queries[key] = query
+
+        return outdated_storing_queries.values()
 
     @classmethod
     def search(cls, term, groups):

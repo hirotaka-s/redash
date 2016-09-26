@@ -38,6 +38,12 @@ if settings.QUERY_RESULTS_CLEANUP_ENABLED:
         'schedule': timedelta(minutes=5)
     }
 
+if settings.HISTORICAL_QUERY_RESULTS_STORE_ENABLED:
+    celery_schedule['store_scheduled_query_results'] = {
+        'task': 'redash.tasks.store_scheduled_query_results',
+        'schedule': timedelta(seconds=30)
+    }
+
 celery.conf.update(CELERY_RESULT_BACKEND=settings.CELERY_BACKEND,
                    CELERYBEAT_SCHEDULE=celery_schedule,
                    CELERY_TIMEZONE='UTC')
