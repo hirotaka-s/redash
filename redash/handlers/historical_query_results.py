@@ -119,9 +119,24 @@ class HistoricalQueryResultResource(QueryResultResource):
 
 
     def make_json_response(self, historical_query_results):
-        data = json.dumps({'historical_query_results': [result.to_dict() for result in historical_query_results]}, cls=utils.JSONEncoder)
+        result = historical_query_results[0].to_dict()
+        del result['data_timestamp']
+        result['data']['columns'].append({'fiendly_name': 'data_timestamp', 'name': 'data_timestamp', 'type': 'datetime'})
+        del result['data']['rows'][:]
+
+        for query_result in historical_query_results:
+            query_result_dict = query_result.to_dict()
+            for row in query_result_dict['data']['rows']:
+                row['data_timestamp'] = query_result_dict['data_timestamp']
+                result['data']['rows'].append(row)
+
+        data = json.dumps({'historical_query_results': result}, cls=utils.JSONEncoder)
         return make_response(data, 200, {})
 
+
+        
+
+        
 
 
 class StoreJobResource(BaseResource):
