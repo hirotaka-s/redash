@@ -892,6 +892,47 @@
       return;
     };
 
+    var TimeRangeParameters =  function(historicalQueryResult) {
+      this.historicalQueryResult = historicalQueryResult
+      this.time_range_parameters = [
+        {
+          'title': 'Execute from',
+          'name': 'execute_from',
+          'type': 'datetime-local',
+          'value': null
+        },
+        {
+          'title': 'to',
+          'name': 'execute_to',
+          'type': 'datetime-local',
+          'value': null
+        },
+        {
+          'title': 'Execution interval hours',
+          'name': 'execution_interval_hours',
+          'type': 'number',
+          'value': 24
+        }
+      ];
+    };
+
+    TimeRangeParameters.prototype.get = function() {
+      return this.time_range_parameters;
+    };
+
+    TimeRangeParameters.prototype.getValues = function() {
+      var params = this.get();
+      return _.object(_.pluck(params, 'name'), _.pluck(params, 'value'));
+    }
+
+    HistoricalQueryResult.prototype.getTimeRangeParameters = function() {
+      if (!this.$time_range_parameters) {
+        this.$time_range_parameters = new TimeRangeParameters(this);
+      }
+
+      return this.$time_range_parameters;
+    }
+    
     return HistoricalQueryResult;
   };
 

@@ -1,0 +1,6 @@
+<div class="form-inline bg-white p-5" ng-if="show_time_range_form" ui-sortable="{ 'ui-floating': true, 'disabled': !editable }" ng-model="storingTimeRange">
+  <div class="form-group" ng-repeat="param in storingTimeRange.time_range_parameters">
+    <label>{{param.title}}</label>
+    <input type="{{param.type}}" class="form-control" ng-model="param.value">
+  </div>
+</div>

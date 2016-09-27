@@ -1,5 +1,7 @@
 import json
 import time
+import dateutil.parser
+from dateutil.relativedelta import relativedelta
 
 import pystache
 from flask import make_response, request, after_this_request
@@ -23,11 +25,27 @@ def error_response(message):
 def store_historical_query_result(data_source, query_id, query_text, data_timestamp, query_task_id, max_age=0):
     template_query_text = models.Query.get_by_id(query_id).query
     if max_age == 0:
+        # FIXME
         query_result = None
     else:
         store_job = enqueue_store_task(data_source, template_query_text, query_text,  data_timestamp, query_task_id)
         return {'job': store_job.to_dict()}
 
+
+def query_execute_and_store_result(data_source, query_id, query_text, time_range, max_age):
+    template_query_text = models.Query.get_by_id(query_id).query
+
+    data_timestamp = dateutil.parser.parse(time_range['execute_from'])
+    execute_to = dateutil.parser.parse(time_range['execute_to'])
+    execute_interval_hours = relativedelta(hours=time_range['execute_interval_hours'])
+
+    while data_timestamp <= execute_to:
+        query_job = enqueue_query(query_text, date_source, metadata={"Username": current_user.name, "Query ID": query_id})
+        store_job = enqueue_store_task(data_source, template_query_text, query_text, data_timestamp, query_job.to_dict()['id'])
+        data_timestamp += execute_interval_hours
+
+    return {'job': store_job.to_dict()}
+    
 
 class HistoricalQueryResultListResource(BaseResource):
     def post(self):
@@ -38,6 +56,7 @@ class HistoricalQueryResultListResource(BaseResource):
         query_text = params.get('query_text', None)
         data_timestamp = params.get('data_timestamp', None)
         query_task_id = params.get('task_id', None)
+        time_range = params.get('time_range', None)
 
         data_source = models.DataSource.get_by_id_and_org(params.get('data_source_id'), self.current_org)
 
@@ -52,6 +71,9 @@ class HistoricalQueryResultListResource(BaseResource):
             'object_type': 'data_source',
             'query_id': query_id
         })
+
+        if time_range is not None and query_task_id is None:
+            return query_execute_and_store_result(data_source, query_id, query_text, time_range, max_age)
 
         return store_historical_query_result(data_source, query_id, query_text, data_timestamp, query_task_id, max_age)
 
@@ -132,4 +154,3 @@ class StoreJobResource(BaseResource):
     def delete(self, job_id):
         job = StoreTask(job_id=job_id)
         job.cancel()
-

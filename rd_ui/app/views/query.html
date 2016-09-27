@@ -225,6 +225,7 @@
       <div class="row">
         <div class="col-lg-12">
           <parameters parameters="query.getParametersDefs()" sync-values="!query.isNew()" editable="sourceMode && canEdit"></parameters>
+          <storing-time-range storing-time-range="historicalQueryResult.getTimeRangeParameters()", parameters="query.options.parameters" sync-values="!query.isNew()" editable="sourceMode && canEdit"></storing-time-range>
           <!-- Query Execution Status -->
           <div class="alert alert-info" ng-show="queryResult.getStatus() == 'processing'">
             Executing query&hellip;

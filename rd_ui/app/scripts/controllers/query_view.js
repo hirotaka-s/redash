@@ -317,6 +317,7 @@
     };
 
     $scope.disableRefreshQueries = clientConfig.disableRefreshQueries;
+    $scope.historicalQueryResult = new HistoricalQueryResult();
 
     $scope.showEmbedDialog = function(query, visualization) {
       $modal.open({

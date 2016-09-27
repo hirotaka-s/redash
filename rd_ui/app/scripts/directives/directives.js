@@ -535,4 +535,28 @@
     }
   }]);
 
+  directives.directive('storingTimeRange', function() {
+    return {
+      restrict: 'E',
+      transclude: true,
+      scope: {
+        'storingTimeRange': '=',
+        'parameters': '=',
+        'syncValues': '=?',
+        'editable': '=?'
+      },
+      templateUrl: '/views/directives/storing-time-range.html',
+      link: function(scope, elem, attrs) {
+        scope.$watch('parameters', function() {
+          scope.timestamp = _.filter(scope.parameters, function(param) {
+            return param['name'] === '__timestamp';
+          });
+          scope.show_time_range_form = scope.timestamp.length > 0 ? true : false
+        }, true);
+
+        scope.$watch('storingTimeRange.time_range_parameters', function)
+      }
+    }
+  });
+
 })();
