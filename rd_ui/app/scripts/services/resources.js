@@ -1191,6 +1191,7 @@
           if (error.status === 403) {
             historicalQueryResult.update(error.data);
           } else if (error.status === 400) {
+            console.log('Error: %s', error.data.job.error );
             historicalQueryResult.update(error.data);
           } else {
             console.log("Unknown error", error);

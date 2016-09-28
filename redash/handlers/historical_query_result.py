@@ -24,6 +24,9 @@ def error_response(message):
 
 
 def store_historical_query_result(data_source, query_id, query_text, data_timestamp, query_task_id, max_age=0):
+    if query_id == 'adhoc':
+        return error_response('Unsaved query result is not stored.')
+
     template_query_text = models.Query.get_by_id(query_id).query
     historical_query_result = None
 
