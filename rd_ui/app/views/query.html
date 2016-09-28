@@ -262,7 +262,7 @@
                 <ul class="tab-nav">
                   <rd-tab tab-id="table" name="Table" base-path="query.getUrl(sourceMode)"></rd-tab>
                   <rd-tab tab-id="{{vis.id}}" name="{{vis.name}}" ng-if="vis.type!='TABLE'" base-path="query.getUrl(sourceMode)"
-                          ng-repeat="vis in query.visualizations | filter: {type:'!HISTORICAL CHART'}:ture">
+                          ng-repeat="vis in query.visualizations | filter: {type:'!HISTORICAL CHART'}:true">
                           <span class="remove" ng-click="deleteVisualization($event, vis)"
                                 ng-show="canEdit"> &times;</span>
                   </rd-tab>
