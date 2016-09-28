@@ -800,9 +800,10 @@
 
     var updateFunction = function (props) {
       angular.extend(this, props);
-      if ('historical_query_result' in props) {
+      if (props.historical_query_result === null) {
         this.status = "done";
-        console.log('results: %O', props)
+      } else if ('historical_query_result' in props) {
+        this.status = "done";
         this.filters = undefined;
         this.filterFreeze = undefined;
 
@@ -920,7 +921,7 @@
     }
 
     HistoricalQueryResult.prototype.getData = function () {
-      if (!this.historical_query_result.data) {
+      if (!this.historical_query_result || !this.historical_query_result.data) {
         return null;
       }
 

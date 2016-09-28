@@ -24,9 +24,6 @@ def error_response(message):
 
 
 def store_historical_query_result(data_source, query_id, query_text, data_timestamp, query_task_id, max_age=0):
-    if query_id == 'adhoc':
-        return error_response('Unsaved query result is not stored.')
-
     template_query_text = models.Query.get_by_id(query_id).query
     historical_query_result = None
 
@@ -54,6 +51,8 @@ class HistoricalQueryResultListResource(BaseResource):
 
         data_source = models.DataSource.get_by_id_and_org(params.get('data_source_id'), self.current_org)
 
+        if query_id == 'adhoc':
+            return None
 
         if not has_access(data_source.groups, self.current_user, not_view_only):
             return {'job': {'status': 4, 'error': 'You do not have permission to store historical query results with this data source.'}}, 403
@@ -73,6 +72,7 @@ class HistoricalQueryResultResource(QueryResultResource):
     @require_permission('view_query')
     def get(self, query_id=None, store_result_id=None, filetype='json'):
         template_query_hash = None
+        query_result = None
        
         if store_result_id is None and query_id is not None:
             query = get_object_or_404(models.Query.get_by_id_and_org, query_id, self.current_org)
@@ -91,6 +91,7 @@ class HistoricalQueryResultResource(QueryResultResource):
 
         if query_result:
             require_access(query_result[0].data_source.groups, self.current_user, view_only)
+            query_result = join_historical_query_result(query_result)
 
             if isinstance(self.current_user, models.ApiUser):
                 event = {
@@ -128,18 +129,18 @@ class HistoricalQueryResultResource(QueryResultResource):
             return response
 
         else:
-            abort(404, message='No cached result found for this query.')
+          return make_response(None, 200, {})
 
 
     def make_json_response(self, historical_query_result):
-        data = json.dumps({'historical_query_result': join_historical_query_result(historical_query_result)}, cls=utils.JSONEncoder)
+        data = json.dumps({'historical_query_result': historical_query_result}, cls=utils.JSONEncoder)
         return make_response(data, 200, {})
 
     @staticmethod
     def make_csv_response(query_result):
         s = cStringIO.StringIO()
 
-        query_data = join_historical_query_result(query_result)['data']
+        query_data = query_result['data']
         writer = csv.DictWriter(s, fieldnames=[col['name'] for col in query_data['columns']])
         writer.writer = utils.UnicodeWriter(s)
         writer.writeheader()
@@ -153,7 +154,7 @@ class HistoricalQueryResultResource(QueryResultResource):
     def make_excel_response(query_result):
         s = cStringIO.StringIO()
 
-        query_data = join_historical_query_result(query_result)['data']
+        query_data = query_result['data']
         query_data = json.loads(json.dumps(query_data, cls=utils.JSONEncoder))
         book = xlsxwriter.Workbook(s)
         sheet = book.add_worksheet("result")
@@ -175,6 +176,9 @@ class HistoricalQueryResultResource(QueryResultResource):
 
 
 def join_historical_query_result(historical_query_result):
+    if len(historical_query_result) == 0:
+        return None
+
     result = historical_query_result[0].to_dict()
     del result['data_timestamp']
     result['data']['columns'].append({'fiendly_name': 'data_timestamp', 'name': 'data_timestamp', 'type': 'datetime'})
