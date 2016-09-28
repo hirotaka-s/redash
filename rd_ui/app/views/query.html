@@ -261,7 +261,7 @@
                 <ul class="tab-nav">
                   <rd-tab tab-id="table" name="Table" base-path="query.getUrl(sourceMode)"></rd-tab>
                   <rd-tab tab-id="{{vis.id}}" name="{{vis.name}}" ng-if="vis.type!='TABLE'" base-path="query.getUrl(sourceMode)"
-                          ng-repeat="vis in query.visualizations">
+                          ng-repeat="vis in query.visualizations | filter: {type:'!HISTORICAL CHART'}:ture">
                           <span class="remove" ng-click="deleteVisualization($event, vis)"
                                 ng-show="canEdit"> &times;</span>
                   </rd-tab>
@@ -283,6 +283,44 @@
                   <visualization-renderer visualization="vis" query-result="queryResult"></visualization-renderer>
                   <div class="bg-ace p-5">
                     <button class="btn btn-default" ng-click="openVisualizationEditor(vis)" ng-if="canEdit">Edit</button>
+                    <button class="btn btn-default" ng-click="showEmbedDialog(query, vis)"><i class="zmdi zmdi-code"></i> Embed</button>
+                  </div>
+                </div>
+                <div ng-if="selectedTab == vis.id" ng-repeat="vis in query.visualizations">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- tabs and data -->
+          <div ng-if="showDataset">
+            <div class="row">
+              <div class="col-lg-12">
+                <ul class="tab-nav">
+                  <rd-tab tab-id="table" name="Historical Table" base-path="query.getUrl(sourceMode)"></rd-tab>
+                  <rd-tab tab-id="{{vis.id}}" name="{{vis.name}}" ng-if="vis.type!='TABLE'" base-path="query.getUrl(sourceMode)"
+                          ng-repeat="vis in query.visualizations | filter: {type: 'HISTORICAL CHART'}">
+                          <span class="remove" ng-click="deleteVisualization($event, vis)"
+                                ng-show="canEdit"> &times;</span>
+                  </rd-tab>
+                  <li class="rd-tab"><a ng-click="openVisualizationEditorForHistoricalData()" ng-if="sourceMode && canEdit">&plus; New Visualization for Historical Data</a></li>
+                </ul>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-lg-12">
+                <div ng-show="selectedTab == 'table'">
+                  <filters></filters>
+                  <grid-renderer query-result="historicalQueryResult" items-per-page="50"></grid-renderer>
+                  <!-- the ng-repeat is a lame hack to find the table visualization... -->
+                  <div class="bg-ace p-5" ng-repeat="vis in query.visualizations" ng-if="vis.type == 'TABLE'">
+                    <button class="btn btn-default" ng-if="!query.isNew()" ng-click="showEmbedDialog(query, vis)"><i class="zmdi zmdi-code"></i> Embed</button>
+                  </div>
+                </div>
+                <div ng-if="selectedTab == vis.id" ng-repeat="vis in query.visualizations">
+                  <historical-visualization-renderer visualization="vis" historical-query-result="historicalQueryResult"></historical-visualization-renderer>
+                  <div class="bg-ace p-5">
+                    <button class="btn btn-default" ng-click="openVisualizationEditorForHistoricalData(vis)" ng-if="canEdit">Edit</button>
                     <button class="btn btn-default" ng-click="showEmbedDialog(query, vis)"><i class="zmdi zmdi-code"></i> Embed</button>
                   </div>
                 </div>

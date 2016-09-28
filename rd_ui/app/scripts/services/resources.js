@@ -795,15 +795,45 @@
   }
 
   var HistoricalQueryResult = function ($resource, $timeout, $q) {
-    var HistoricalQueryResultResource = $resource('api/historical_query_results/:id', {id: '@id'}, {'post': {'method': 'POST'}});
+    var HistoricalQueryResultResource = $resource('api/historical_query_result/:id', {id: '@id'}, {'post': {'method': 'POST'}});
     var Job = $resource('api/store_jobs/:id', {id: '@id'});
 
     var updateFunction = function (props) {
       angular.extend(this, props);
-      if ('historical_query_results' in props) {
+      if ('historical_query_result' in props) {
         this.status = "done";
         console.log('results: %O', props)
-        
+        this.filters = undefined;
+        this.filterFreeze = undefined;
+
+        var columnTypes = {};
+
+        // TODO: we should stop manipulating incoming data, and switch to relaying on the column type set by the backend.
+        // This logic is prone to errors, and better be removed. Kept for now, for backward compatability.
+        _.each(this.historical_query_result.data.rows, function (row) {
+          _.each(row, function (v, k) {
+            if (angular.isNumber(v)) {
+              columnTypes[k] = 'float';
+            } else if (_.isString(v) && v.match(/^\d{4}-\d{2}-\d{2}T/)) {
+              row[k] = moment.utc(v);
+              columnTypes[k] = 'datetime';
+            } else if (_.isString(v) && v.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              row[k] = moment.utc(v);
+              columnTypes[k] = 'date';
+            } else if (typeof(v) == 'object' && v !== null) {
+              row[k] = JSON.stringify(v);
+            }
+          }, this);
+        }, this);
+
+        _.each(this.historical_query_result.data.columns, function(column) {
+          if (columnTypes[column.name]) {
+            if (column.type == null || column.type == 'string') {
+              column.type = columnTypes[column.name];
+            }
+          }
+        });
+
         this.deferred.resolve(this);
       } else if (this.job.status == 3) {
         this.status = "processing";
@@ -819,6 +849,14 @@
       4: "failed"
     }
     
+    HistoricalQueryResult.prototype.getId = function () {
+      var id = null;
+      if ('historical_query_result' in this) {
+        id = this.historical_query_result.id;
+      }
+      return id;
+    }
+
     HistoricalQueryResult.prototype.update = updateFunction;
 
     HistoricalQueryResult.prototype.getStatus = function () {
@@ -828,7 +866,7 @@
     function HistoricalQueryResult(props) {
       this.deferred = $q.defer();
       this.job = {};
-      this.historical_query_results = {};
+      this.historical_query_result = {};
       this.status = "waiting";
 
       this.updatedAt = moment();
@@ -836,6 +874,274 @@
       if (props) {
         updateFunction.apply(this, [props]);
       }
+    }
+
+    HistoricalQueryResult.prototype.cancelExecution = function () {
+      Job.delete({id: this.job.id});
+    }
+
+    HistoricalQueryResult.prototype.getStatus = function () {
+      return this.status || statuses[this.job.status];
+    }
+
+    HistoricalQueryResult.prototype.getError = function () {
+      // TODO: move this logic to the server...
+      if (this.job.error == "None") {
+        return undefined;
+      }
+
+      return this.job.error;
+    }
+
+    HistoricalQueryResult.prototype.getLog = function() {
+        if (!this.historical_query_result.data  || !this.historical_query_result.data.log || this.historical_query_result.data.log.length == 0) {
+            return null;
+        }
+
+        return this.historical_query_result.data.log;
+    }
+
+    HistoricalQueryResult.prototype.getUpdatedAt = function () {
+      return this.updatedAt || this.historical_query_result.retrieved_at || this.job.updated_at * 1000.0;
+    }
+
+    HistoricalQueryResult.prototype.getRuntime = function () {
+      return this.historical_query_result.runtime;
+    }
+
+    HistoricalQueryResult.prototype.getRawData = function () {
+      if (!this.historical_query_result.data) {
+        return null;
+      }
+
+      var data = this.historical_query_result.data.rows;
+
+      return data;
+    }
+
+    HistoricalQueryResult.prototype.getData = function () {
+      if (!this.historical_query_result.data) {
+        return null;
+      }
+
+      var filterValues = function (filters) {
+        if (!filters) {
+          return null;
+        }
+
+        return _.reduce(filters, function (str, filter) {
+          return str + filter.current;
+        }, "")
+      }
+
+      var filters = this.getFilters();
+      var filterFreeze = filterValues(filters);
+
+      if (this.filterFreeze != filterFreeze) {
+        this.filterFreeze = filterFreeze;
+
+        if (filters) {
+          this.filteredData = _.filter(this.historical_query_result.data.rows, function (row) {
+            return _.reduce(filters, function (memo, filter) {
+              if (!_.isArray(filter.current)) {
+                filter.current = [filter.current];
+              };
+
+              return (memo && _.some(filter.current, function(v) {
+                var value = row[filter.name];
+                if (moment.isMoment(value)) {
+                  return value.isSame(v);
+                } else {
+                  // We compare with either the value or the String representation of the value,
+                  // because Select2 casts true/false to "true"/"false".
+                  return (v == value || String(value) == v);
+                }
+              }));
+            }, true);
+          });
+        } else {
+          this.filteredData = this.historical_query_result.data.rows;
+        }
+      }
+
+      return this.filteredData;
+    };
+
+    /**
+     * Helper function to add a point into a series
+     */
+    HistoricalQueryResult.prototype._addPointToSeries = function (point, seriesCollection, seriesName) {
+      if (seriesCollection[seriesName] == undefined) {
+        seriesCollection[seriesName] = {
+          name: seriesName,
+          type: 'column',
+          data: []
+        };
+      }
+
+      seriesCollection[seriesName]['data'].push(point);
+    };
+
+    HistoricalQueryResult.prototype.getChartData = function (mapping) {
+      var series = {};
+
+      _.each(this.getData(), function (row) {
+        var point = {};
+        var seriesName = undefined;
+        var xValue = 0;
+        var yValues = {};
+
+        _.each(row, function (value, definition) {
+          var name = definition.split("::")[0] || definition.split("__")[0];
+          var type = definition.split("::")[1] || definition.split("__")[1];
+          if (mapping) {
+            type = mapping[definition];
+          }
+
+          if (type == 'unused') {
+            return;
+          }
+
+          if (type == 'x') {
+            xValue = value;
+            point[type] = value;
+          }
+          if (type == 'y') {
+            if (value == null) {
+              value = 0;
+            }
+            yValues[name] = value;
+            point[type] = value;
+          }
+
+          if (type == 'series') {
+            seriesName = String(value);
+          }
+
+          if (type == 'multiFilter' || type == 'multi-filter') {
+            seriesName = String(value);
+          }
+        });
+
+        if (seriesName === undefined) {
+          _.each(yValues, function (yValue, seriesName) {
+            this._addPointToSeries({'x': xValue, 'y': yValue}, series, seriesName);
+          }.bind(this));
+        }
+        else {
+          this._addPointToSeries(point, series, seriesName);
+        }
+      }.bind(this));
+
+      return _.values(series);
+    };
+
+    HistoricalQueryResult.prototype.getColumns = function () {
+      if (this.columns == undefined && this.historical_query_result.data) {
+        this.columns = this.historical_query_result.data.columns;
+      }
+
+      return this.columns;
+    }
+
+    HistoricalQueryResult.prototype.getColumnNames = function () {
+      if (this.columnNames == undefined && this.historical_query_result.data) {
+        this.columnNames = _.map(this.historical_query_result.data.columns, function (v) {
+          return v.name;
+        });
+      }
+
+      return this.columnNames;
+    }
+
+    HistoricalQueryResult.prototype.getColumnNameWithoutType = function (column) {
+      var typeSplit;
+      if (column.indexOf("::") != -1) {
+        typeSplit = "::";
+      } else if (column.indexOf("__") != -1) {
+        typeSplit = "__";
+      } else {
+        return column;
+      }
+
+      var parts = column.split(typeSplit);
+      if (parts[0] == "" && parts.length == 2) {
+        return parts[1];
+      }
+      return parts[0];
+    };
+
+    HistoricalQueryResult.prototype.getColumnCleanName = function (column) {
+      var name = this.getColumnNameWithoutType(column);
+
+      return name;
+    }
+
+    HistoricalQueryResult.prototype.getColumnFriendlyName = function (column) {
+      return this.getColumnNameWithoutType(column).replace(/(?:^|\s)\S/g, function (a) {
+        return a.toUpperCase();
+      });
+    }
+
+    HistoricalQueryResult.prototype.getColumnCleanNames = function () {
+      return _.map(this.getColumnNames(), function (col) {
+        return this.getColumnCleanName(col);
+      }, this);
+    }
+
+    HistoricalQueryResult.prototype.getColumnFriendlyNames = function () {
+      return _.map(this.getColumnNames(), function (col) {
+        return this.getColumnFriendlyName(col);
+      }, this);
+    }
+
+    HistoricalQueryResult.prototype.getFilters = function () {
+      if (!this.filters) {
+        this.prepareFilters();
+      }
+
+      return this.filters;
+    };
+
+    HistoricalQueryResult.prototype.prepareFilters = function () {
+      var filters = [];
+      var filterTypes = ['filter', 'multi-filter', 'multiFilter'];
+      _.each(this.getColumns(), function (col) {
+        var name = col.name;
+        var type = name.split('::')[1] || name.split('__')[1];
+        if (_.contains(filterTypes, type)) {
+          // filter found
+          var filter = {
+            name: name,
+            friendlyName: this.getColumnFriendlyName(name),
+            column: col,
+            values: [],
+            multiple: (type=='multiFilter') || (type=='multi-filter')
+          }
+          filters.push(filter);
+        }
+      }, this);
+
+      _.each(this.getRawData(), function (row) {
+        _.each(filters, function (filter) {
+          filter.values.push(row[filter.name]);
+          if (filter.values.length == 1) {
+            filter.current = row[filter.name];
+          }
+        })
+      });
+
+      _.each(filters, function(filter) {
+        filter.values = _.uniq(filter.values, function(v) {
+          if (moment.isMoment(v)) {
+            return v.unix();
+          } else {
+            return v;
+          }
+        });
+      });
+
+      this.filters = filters;
     }
 
     var refreshStatus = function (historicalQueryResult) {
@@ -857,6 +1163,10 @@
         historicalQueryResult.update({job: {error: 'failed communicating with server. Please check your Internet connection and try again.', status: 4}})
       });
     }
+    
+    HistoricalQueryResult.prototype.toPromise = function() {
+      return this.deferred.promise;
+    }
 
     HistoricalQueryResult.storeQueryResult = function (data_source_id, taskId, maxAge, queryId, query_text, parameters) {
       var historicalQueryResult = new HistoricalQueryResult();
@@ -869,8 +1179,10 @@
           params['query_id'] = queryId;
         };
 
+        console.log('%O', params);
         HistoricalQueryResultResource.post(params, function (response) {
           historicalQueryResult.update(response);
+          console.log('%O', response);
 
           if ('job' in response) {
             refreshStatus(historicalQueryResult);

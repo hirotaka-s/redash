@@ -9,7 +9,7 @@
     });
   };
 
-  var DashboardCtrl = function($scope, Events, Widget, $routeParams, $location, $http, $timeout, $q, $modal, Dashboard) {
+  var DashboardCtrl = function($scope, Events, Widget, HistoricalQueryResult, $routeParams, $location, $http, $timeout, $q, $modal, Dashboard) {
     $scope.refreshEnabled = false;
     $scope.isFullscreen = false;
     $scope.refreshRate = 60;
@@ -18,13 +18,18 @@
       $scope.$parent.pageTitle = dashboard.name;
 
       var promises = [];
+      var historical_promises = [];
 
       _.each($scope.dashboard.widgets, function (row) {
         return _.each(row, function (widget) {
           if (widget.visualization) {
             var queryResult = widget.getQuery().getQueryResult();
+            $scope.query = widget.getQuery();
+            var historicalQueryResult = HistoricalQueryResult.storeQueryResult($scope.query.data_source_id, null, -1, $scope.query.id, $scope.query.query, $scope.query.getParameters());
             if (angular.isDefined(queryResult))
               promises.push(queryResult.toPromise());
+            if (angular.isDefined(historicalQueryResult))
+              historical_promises.push(historicalQueryResult.toPromise());
           }
         });
       });
@@ -33,6 +38,41 @@
         var filters = {};
         _.each(queryResults, function(queryResult) {
           var queryFilters = queryResult.getFilters();
+          _.each(queryFilters, function (queryFilter) {
+            var hasQueryStringValue = _.has($location.search(), queryFilter.name);
+
+            if (!(hasQueryStringValue || dashboard.dashboard_filters_enabled)) {
+              // If dashboard filters not enabled, or no query string value given, skip filters linking.
+              return;
+            }
+
+            if (!_.has(filters, queryFilter.name)) {
+              var filter = _.extend({}, queryFilter);
+              filters[filter.name] = filter;
+              filters[filter.name].originFilters = [];
+              if (hasQueryStringValue) {
+                filter.current = $location.search()[filter.name];
+              }
+
+              $scope.$watch(function () { return filter.current }, function (value) {
+                _.each(filter.originFilters, function (originFilter) {
+                  originFilter.current = value;
+                });
+              });
+            }
+
+            // TODO: merge values.
+            filters[queryFilter.name].originFilters.push(queryFilter);
+          });
+        });
+
+        $scope.filters = _.values(filters);
+      });
+
+      $q.all(historical_promises).then(function(historicalQueryResults) {
+        var filters = {};
+        _.each(historicalQueryResults, function(historicalQueryResult) {
+          var queryFilters = historicalQueryResult.getFilters();
           _.each(queryFilters, function (queryFilter) {
             var hasQueryStringValue = _.has($location.search(), queryFilter.name);
 
@@ -188,7 +228,7 @@
     }
   };
 
-  var WidgetCtrl = function($scope, $location, Events, Query) {
+  var WidgetCtrl = function($scope, $location, Events, Query, HistoricalQueryResult) {
     $scope.deleteWidget = function() {
       if (!confirm('Are you sure you want to remove "' + $scope.widget.getName() + '" from the dashboard?')) {
         return;
@@ -217,11 +257,13 @@
         maxAge = 0;
       }
       $scope.queryResult = $scope.query.getQueryResult(maxAge);
+      $scope.historicalQueryResult = HistoricalQueryResult.storeQueryResult($scope.query.data_source_id, null, -1, $scope.query.id, $scope.query.query, $scope.query.getParameters());
     };
 
     if ($scope.widget.visualization) {
       Events.record(currentUser, "view", "query", $scope.widget.visualization.query.id);
       Events.record(currentUser, "view", "visualization", $scope.widget.visualization.id);
+      console.log('%O', $scope.widget.visualization)
 
       $scope.query = $scope.widget.getQuery();
       $scope.reload(false);
@@ -235,8 +277,8 @@
   };
 
   angular.module('redash.controllers')
-    .controller('DashboardCtrl', ['$scope', 'Events', 'Widget', '$routeParams', '$location', '$http', '$timeout', '$q', '$modal', 'Dashboard', DashboardCtrl])
+    .controller('DashboardCtrl', ['$scope', 'Events', 'Widget', 'HistoricalQueryResult', '$routeParams', '$location', '$http', '$timeout', '$q', '$modal', 'Dashboard', DashboardCtrl])
     .controller('PublicDashboardCtrl', ['$scope', 'Events', 'Widget', '$routeParams', '$location', '$http', '$timeout', '$q', 'Dashboard', PublicDashboardCtrl])
-    .controller('WidgetCtrl', ['$scope', '$location', 'Events', 'Query', WidgetCtrl])
+    .controller('WidgetCtrl', ['$scope', '$location', 'Events', 'Query', 'HistoricalQueryResult', WidgetCtrl])
 
 })();

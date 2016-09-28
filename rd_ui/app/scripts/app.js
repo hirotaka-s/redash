@@ -5,6 +5,7 @@ angular.module('redash', [
   'redash.filters',
   'redash.services',
   'redash.visualization',
+  'redash.historical_visualization',
   'plotly',
   'angular-growl',
   'angularMoment',

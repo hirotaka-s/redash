@@ -249,7 +249,9 @@ class StoreExecutor(object):
             break
 
         
+        logging.info('QUERY_TEXT: %s', self.query_text)
         latest_query_data_id = models.QueryResult.get_latest(self.data_source, self.query_text).id
+        logging.info('LATEST_QUERY_DATA_ID: %s', latest_query_data_id)
         data = models.QueryResult.get_by_id(latest_query_data_id)
 
         store_result = models.HistoricalQueryResult.store_result(data.org,
