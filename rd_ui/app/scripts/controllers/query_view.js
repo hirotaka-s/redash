@@ -17,6 +17,19 @@
       $scope.queryResult = $scope.query.getQueryResult(maxAge);
     };
 
+    var getHistoricalQueryResult = function(maxAge) {
+      if (maxAge === undefined) {
+        maxAge = $location.search()['maxAge'];
+      }
+
+      if (maxAge === undefined) {
+        maxAge = -1;
+      }
+
+      $scope.showLog = false;
+      $scope.historicalQueryResult = HistoricalQueryResult.storeQueryResult($scope.query.data_source_id, null, maxAge, $scope.query.id, $scope.query.query, $scope.query.getParameters());
+    };
+
     var getDataSourceId = function() {
       // Try to get the query's data source id
       var dataSourceId = $scope.query.data_source_id;
@@ -90,6 +103,7 @@
     Events.record(currentUser, 'view', 'query', $scope.query.id);
     if ($scope.query.hasResult() || $scope.query.paramsRequired()) {
       getQueryResult();
+      getHistoricalQueryResult();
     }
     $scope.queryExecuting = false;
 
@@ -228,6 +242,12 @@
       $location.hash(visualization.id);
     };
 
+    $scope.setHistoricalVisualizationTab = function (visualization) {
+      console.log(visualization)
+      $scope.selectedTab = visualization.id;
+      $location.hash(visualization.id);
+    };
+
     $scope.$watch('query.name', function() {
       $scope.$parent.pageTitle = $scope.query.name;
     });
@@ -294,6 +314,32 @@
       $scope.openVisualizationEditor();
     }
 
+    $scope.openVisualizationEditorForHistoricalData = function(visualization) {
+      function openModal() {
+        $modal.open({
+          templateUrl: '/views/directives/visualization_editor_for_historical_data.html',
+          windowClass:'modal-xl',
+          scope: $scope,
+          controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
+            $scope.modalInstance = $modalInstance;
+            $scope.visualization = visualization;
+            $scope.close = function() {
+              $modalInstance.close();
+            }
+          }]
+        });
+      }
+
+      if ($scope.query.isNew()) {
+        $scope.saveQuery().then(function(query) {
+          // Because we have a path change, we need to "signal" the next page to open the visualization editor.
+          $location.path(query.getSourceLink()).hash('add');
+        });
+      } else {
+        openModal();
+      }
+    };
+
     $scope.openScheduleForm = function() {
       if (!$scope.isQueryOwner || !$scope.canScheduleQuery) {
         return;
@@ -340,15 +386,14 @@
       $scope.selectedTab = hash || DEFAULT_TAB;
     });
     
-    $scope.$watch('queryExecuting', function(now, old) {
-      if (now) {
+    $scope.$watch('queryResult.job.id', function(job_id) {
+      if (job_id !== undefined) {
         var maxAge = $location.search()['maxAge'] || -1;
-        console.log(maxAge);
         var parameters = $scope.query.getParameters();
         var query_text = Mustache.render($scope.query.query, parameters.getValues());
 
-        HistoricalQueryResult.storeQueryResult($scope.query.data_source_id,
-            $scope.queryResult.job.id, maxAge, $scope.query.id, query_text, parameters);
+        $scope.historicalQueryResult = HistoricalQueryResult.storeQueryResult($scope.query.data_source_id,
+            job_id, maxAge, $scope.query.id, query_text, parameters);
       }
     });
   };

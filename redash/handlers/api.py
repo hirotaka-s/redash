@@ -10,7 +10,7 @@ from redash.handlers.data_sources import DataSourceTypeListResource, DataSourceL
 from redash.handlers.events import EventResource
 from redash.handlers.queries import QueryRefreshResource, QueryListResource, QueryRecentResource, QuerySearchResource, QueryResource
 from redash.handlers.query_results import QueryResultListResource, QueryResultResource, JobResource
-from redash.handlers.historical_query_results import HistoricalQueryResultListResource, HistoricalQueryResultResource, StoreJobResource
+from redash.handlers.historical_query_result import HistoricalQueryResultListResource, HistoricalQueryResultResource, StoreJobResource
 from redash.handlers.users import UserResource, UserListResource, UserInviteResource, UserResetPasswordResource
 from redash.handlers.visualizations import VisualizationListResource
 from redash.handlers.visualizations import VisualizationResource
@@ -95,6 +95,11 @@ api.add_org_resource(DestinationListResource, '/api/destinations', endpoint='des
 
 api.add_org_resource(QuerySnippetResource, '/api/query_snippets/<snippet_id>', endpoint='query_snippet')
 api.add_org_resource(QuerySnippetListResource, '/api/query_snippets', endpoint='query_snippets')
-api.add_org_resource(HistoricalQueryResultListResource, '/api/historical_query_results', endpoint='historical_query_results')
-api.add_org_resource(HistoricalQueryResultResource, '/api/historical_query_results/<store_result_id>', endpoint='historical_query_result')
+api.add_org_resource(HistoricalQueryResultListResource, '/api/historical_query_result', endpoint='historical_query_results')
+api.add_org_resource(HistoricalQueryResultResource,
+                     '/api/historical_query_result/<store_result_id>',
+                     '/api/queries/<query_id>/historical_results.<filetype>',
+                     '/api/queries/<query_id>/historical_results/<store_result_id>.<filetype>',
+                     endpoint='historical_query_result')
+
 api.add_org_resource(StoreJobResource, '/api/store_jobs/<job_id>', endpoint='store_job')

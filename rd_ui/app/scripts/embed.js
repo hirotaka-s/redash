@@ -5,6 +5,7 @@ angular.module('redash', [
     'redash.filters',
     'redash.services',
     'redash.visualization',
+    'redash.historical_visualization',
     'plotly',
     'angular-growl',
     'angularMoment',
@@ -43,7 +44,7 @@ angular.module('redash', [
     }
   ])
    .controller('EmbedCtrl', ['$scope', function ($scope) {} ])
-   .controller('EmbeddedVisualizationCtrl', ['$scope', '$location', 'Query', 'QueryResult',
+   .controller('EmbeddedVisualizationCtrl', ['$scope', '$location', 'Query', 'QueryResult', 'HistoricalQueryResult',
      function ($scope, $location, Query, QueryResult) {
        $scope.showQueryDescription = $location.search()['showDescription'];
        $scope.embed = true;
@@ -51,5 +52,6 @@ angular.module('redash', [
        $scope.query = visualization.query;
        query = new Query(visualization.query);
        $scope.queryResult = new QueryResult({query_result: query_result});
+       $scope.queryHistoricalResult = new HistoricalQueryResult({historical_query_result: historical_query_result});
      }])
    ;

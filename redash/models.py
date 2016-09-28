@@ -671,6 +671,15 @@ class HistoricalQueryResult(BaseModel, BelongsToOrgMixin):
         return list(queries)
 
     @classmethod
+    def get_historical_results_by_query_and_data_source(cls, data_source, query_text):
+        query_hash = utils.gen_query_hash(query_text)
+    
+        queries = cls.select().where(cls.query_hash == query_hash,
+                                   cls.data_source == data_source).order_by(cls.data_timestamp.desc())
+
+        return list(queries)
+
+    @classmethod
     def get_latest(cls, data_source, query_hash):
         historical_results = cls.select().where(cls.query_hash == query_hash,
                                                 cls.data_source == data_source) \

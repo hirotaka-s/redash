@@ -60,6 +60,28 @@
     }
   }
 
+  function historicalQueryResultLink() {
+    return {
+      restrict: 'A',
+      link: function (scope, element, attrs) {
+
+        var fileType = attrs.fileType ? attrs.fileType : "csv";
+        scope.$watch('historicalQueryResult && historicalQueryResult.getData()', function(data) {
+          if (!data) {
+            return;
+          }
+
+          if (scope.historicalQueryResult.getId() == null) {
+            element.attr('href', '');
+          } else {
+            element.attr('href', 'api/queries/' + scope.query.id + '/historical_results/' + scope.historicalQueryResult.getId() + '.' + fileType);
+            element.attr('download', scope.query.name.replace(" ", "_") + moment(scope.historicalQueryResult.getUpdatedAt()).format("_YYYY_MM_DD") + "." + fileType);
+          }
+        });
+      }
+    }
+  }
+
   // By default Ace will try to load snippet files for the different modes and fail. We don't need them, so we use these
   // placeholders until we define our own.
   function defineDummySnippets(mode) {
@@ -329,6 +351,7 @@
   .directive('queryLink', queryLink)
   .directive('querySourceLink', ['$location', querySourceLink])
   .directive('queryResultLink', queryResultLink)
+  .directive('historicalQueryResultLink', historicalQueryResultLink)
   .directive('queryEditor', ['QuerySnippet', queryEditor])
   .directive('queryRefreshSelect', queryRefreshSelect)
   .directive('queryTimePicker', queryTimePicker)

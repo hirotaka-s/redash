@@ -51,7 +51,9 @@
 <script src="/scripts/controllers/query_source.js"></script>
 <script src="/scripts/controllers/users.js"></script>
 <script src="/scripts/visualizations/base.js"></script>
+<script src="/scripts/visualizations/historical_base.js"></script>
 <script src="/scripts/visualizations/chart.js"></script>
+<script src="/scripts/visualizations/historical_chart.js"></script>
 <script src="/scripts/visualizations/cohort.js"></script>
 <script src="/scripts/visualizations/map.js"></script>
 <script src="/scripts/visualizations/counter.js"></script>
@@ -73,6 +75,7 @@
     var clientConfig = {{ client_config|safe }};
     var visualization = {{ visualization|safe }};
     var query_result = {{ query_result|safe }};
+    var historical_query_result = {{ historical_query_result|safe }};
 </script>
 
 </body>

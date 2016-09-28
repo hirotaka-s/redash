@@ -1,4 +1,6 @@
 import json
+import csv
+import cStringIO
 import time
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
@@ -7,6 +9,7 @@ import pystache
 from flask import make_response, request, after_this_request
 from flask_login import current_user
 from flask_restful import abort
+import xlsxwriter
 from redash import models, settings, utils
 from redash.tasks import record_event
 from redash.permissions import require_permission, not_view_only, has_access, require_access, view_only
@@ -24,9 +27,15 @@ def error_response(message):
 
 def store_historical_query_result(data_source, query_id, query_text, data_timestamp, query_task_id, max_age=0):
     template_query_text = models.Query.get_by_id(query_id).query
+    historical_query_result = None
+
     if max_age == 0:
-        # FIXME
-        query_result = None
+        historical_query_result = None
+    elif query_task_id is None:
+        historical_query_result = models.HistoricalQueryResult.get_historical_results_by_query_and_data_source(data_source, template_query_text)
+
+    if historical_query_result is not None:
+        return {'historical_query_result': join_historical_query_result(historical_query_result)}
     else:
         store_job = enqueue_store_task(data_source, template_query_text, query_text,  data_timestamp, query_task_id)
         return {'job': store_job.to_dict()}
@@ -83,7 +92,7 @@ class HistoricalQueryResultResource(QueryResultResource):
     def get(self, query_id=None, store_result_id=None, filetype='json'):
         template_query_hash = None
        
-        if store_result_id is not None and query_id is not None:
+        if store_result_id is None and query_id is not None:
             query = get_object_or_404(models.Query.get_by_id_and_org, query_id, self.current_org)
 
         if store_result_id:
@@ -140,9 +149,62 @@ class HistoricalQueryResultResource(QueryResultResource):
             abort(404, message='No cached result found for this query.')
 
 
-    def make_json_response(self, historical_query_results):
-        data = json.dumps({'historical_query_results': [result.to_dict() for result in historical_query_results]}, cls=utils.JSONEncoder)
+    def make_json_response(self, historical_query_result):
+        data = json.dumps({'historical_query_result': join_historical_query_result(historical_query_result)}, cls=utils.JSONEncoder)
         return make_response(data, 200, {})
+
+    @staticmethod
+    def make_csv_response(query_result):
+        s = cStringIO.StringIO()
+
+        query_data = join_historical_query_result(query_result)['data']
+        writer = csv.DictWriter(s, fieldnames=[col['name'] for col in query_data['columns']])
+        writer.writer = utils.UnicodeWriter(s)
+        writer.writeheader()
+        for row in query_data['rows']:
+            writer.writerow(row)
+
+        headers = {'Content-Type': "text/csv; charset=UTF-8"}
+        return make_response(s.getvalue(), 200, headers)
+
+    @staticmethod
+    def make_excel_response(query_result):
+        s = cStringIO.StringIO()
+
+        query_data = join_historical_query_result(query_result)['data']
+        query_data = json.loads(json.dumps(query_data, cls=utils.JSONEncoder));
+        book = xlsxwriter.Workbook(s)
+        sheet = book.add_worksheet("result")
+
+        column_names = []
+        for (c, col) in enumerate(query_data['columns']):
+            sheet.write(0, c, col['name'])
+            column_names.append(col['name'])
+
+        for (r, row) in enumerate(query_data['rows']):
+            for (c, name) in enumerate(column_names):
+                sheet.write(r + 1, c, row.get(name))
+
+        book.close()
+
+        headers = {'Content-Type': "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+        return make_response(s.getvalue(), 200, headers)
+
+
+
+def join_historical_query_result(historical_query_result):
+    result = historical_query_result[0].to_dict()
+    del result['data_timestamp']
+    result['data']['columns'].append({'fiendly_name': 'data_timestamp', 'name': 'data_timestamp', 'type': 'datetime'})
+    del result['data']['rows'][:]
+
+    for query_result in historical_query_result:
+        query_result_dict = query_result.to_dict()
+        for row in query_result_dict['data']['rows']:
+            row['data_timestamp'] = query_result_dict['data_timestamp']
+            result['data']['rows'].append(row)
+
+    return result
 
 
 
