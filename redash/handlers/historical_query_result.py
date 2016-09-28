@@ -7,7 +7,7 @@ import pystache
 from flask import make_response, request, after_this_request
 from flask_login import current_user
 from flask_restful import abort
-from xlsxwriter
+import xlsxwriter
 from redash import models, settings, utils
 from redash.tasks import record_event
 from redash.permissions import require_permission, not_view_only, has_access, require_access, view_only
@@ -151,6 +151,7 @@ class HistoricalQueryResultResource(QueryResultResource):
         s = cStringIO.StringIO()
 
         query_data = join_historical_query_result(query_result)['data']
+        query_data = json.loads(json.dumps(query_data, cls=utils.JSONEncoder))
         book = xlsxwriter.Workbook(s)
         sheet = book.add_worksheet("result")
 
