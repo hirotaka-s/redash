@@ -160,7 +160,6 @@
               unwatch();
 
               scope.visualization = scope.newVisualization();
-              console.log('%O', scope.visualization)
             }
           });
         }
@@ -189,8 +188,6 @@
             growl.addSuccessMessage("HistoricalVisualization saved");
 
             var visIds = _.pluck(scope.query.visualizations, 'id');
-            console.log('%O', scope.query);
-            console.log('%O', scope.query.visualizations);
             var index = visIds.indexOf(result.id);
             if (index > -1) {
               scope.query.visualizations[index] = result;

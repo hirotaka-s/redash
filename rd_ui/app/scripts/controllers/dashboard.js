@@ -263,7 +263,6 @@
     if ($scope.widget.visualization) {
       Events.record(currentUser, "view", "query", $scope.widget.visualization.query.id);
       Events.record(currentUser, "view", "visualization", $scope.widget.visualization.id);
-      console.log('%O', $scope.widget.visualization)
 
       $scope.query = $scope.widget.getQuery();
       $scope.reload(false);

@@ -1148,7 +1148,6 @@
     var refreshStatus = function (historicalQueryResult) {
       Job.get({'id': historicalQueryResult.job.id}, function (response) {
         historicalQueryResult.update(response);
-        console.log('Historical job: %O', response)
 
         if (historicalQueryResult.getStatus() == "processing" && historicalQueryResult.job.store_result_id && historicalQueryResult.job.store_result_id != "None") {
           HistoricalQueryResultResource.get({'id': historicalQueryResult.job.store_result_id}, function (response) {
@@ -1185,10 +1184,8 @@
           params['time_range'] = time_range;
         };
 
-        console.log('%O', params);
         HistoricalQueryResultResource.post(params, function (response) {
           historicalQueryResult.update(response);
-          console.log('%O', response);
 
           if ('job' in response) {
             refreshStatus(historicalQueryResult);

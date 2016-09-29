@@ -275,7 +275,6 @@
     };
 
     $scope.setHistoricalVisualizationTab = function (visualization) {
-      console.log(visualization)
       $scope.selectedTab = visualization.id;
       $location.hash(visualization.id);
     };
