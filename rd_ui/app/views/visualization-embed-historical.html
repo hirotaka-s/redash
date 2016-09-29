@@ -4,7 +4,8 @@
       <p>
         <img src="/images/redash_icon_small.png" style="height: 24px;"/>
         {{query.name}}
-        <small><historical-visualization-name visualization="visualization"/></small>
+        <small ng-if="visualization.type == 'TABLE'"><visualization-name visualization="visualization"/></small>
+        <small ng-if="visualization.type != 'TABLE'"><historical-visualization-name visualization="visualization"/></small>
       </p>
       <small ng-if="showQueryDescription">
         <div class="text-muted" ng-bind-html="query.description | markdown"></div>

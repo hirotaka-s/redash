@@ -72,8 +72,6 @@ angular.module('redash', [
        $scope.query = historical_visualization.query;
        query = new Query(historical_visualization.query);
        $scope.historicalQueryResult = new HistoricalQueryResult({historical_query_result: historical_query_result});
-       console.log('%O', $scope.historicalQueryResult)
-       console.log('%O', $scope.visualization)
      }])
    ;
    ;
