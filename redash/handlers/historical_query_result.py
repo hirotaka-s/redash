@@ -16,7 +16,7 @@ from redash.permissions import require_permission, not_view_only, has_access, re
 from redash.handlers.base import BaseResource, get_object_or_404
 from redash.utils import collect_query_parameters, collect_parameters_from_request
 from redash.tasks.store_query import enqueue_store_task, StoreTask
-from .query_results import QueryResultResource
+from .query_results import QueryResultResource, enqueue_query
 from wsgiref.handlers import format_date_time
 import datetime
 
@@ -41,17 +41,19 @@ def store_historical_query_result(data_source, query_id, query_text, data_timest
         return {'job': store_job.to_dict()}
 
 
-def query_execute_and_store_result(data_source, query_id, query_text, time_range, max_age):
+def query_execute_and_store_result(data_source, query_id, time_range):
     template_query_text = models.Query.get_by_id(query_id).query
+    timestamp_param = {}
 
-    data_timestamp = dateutil.parser.parse(time_range['execute_from'])
+    timestamp_param['__timestamp'] = dateutil.parser.parse(time_range['execute_from'])
     execute_to = dateutil.parser.parse(time_range['execute_to'])
-    execute_interval_hours = relativedelta(hours=time_range['execute_interval_hours'])
+    execution_interval_hours = relativedelta(hours=time_range['execution_interval_hours'])
 
-    while data_timestamp <= execute_to:
-        query_job = enqueue_query(query_text, date_source, metadata={"Username": current_user.name, "Query ID": query_id})
-        store_job = enqueue_store_task(data_source, template_query_text, query_text, data_timestamp, query_job.to_dict()['id'])
-        data_timestamp += execute_interval_hours
+    while timestamp_param['__timestamp'] <= execute_to:
+        query_text = pystache.render(template_query_text, timestamp_param)
+        query_job = enqueue_query(query_text, data_source, metadata={"Username": current_user.name, "Query ID": query_id})
+        store_job = enqueue_store_task(data_source, template_query_text, query_text, timestamp_param['__timestamp'], query_job.to_dict()['id'])
+        timestamp_param['__timestamp'] += execution_interval_hours
 
     return {'job': store_job.to_dict()}
     
@@ -82,7 +84,7 @@ class HistoricalQueryResultListResource(BaseResource):
         })
 
         if time_range is not None and query_task_id is None:
-            return query_execute_and_store_result(data_source, query_id, query_text, time_range, max_age)
+            return query_execute_and_store_result(data_source, query_id, time_range)
 
         return store_historical_query_result(data_source, query_id, query_text, data_timestamp, query_task_id, max_age)
 
@@ -172,7 +174,7 @@ class HistoricalQueryResultResource(QueryResultResource):
         s = cStringIO.StringIO()
 
         query_data = join_historical_query_result(query_result)['data']
-        query_data = json.loads(json.dumps(query_data, cls=utils.JSONEncoder));
+        query_data = json.loads(json.dumps(query_data, cls=utils.JSONEncoder))
         book = xlsxwriter.Workbook(s)
         sheet = book.add_worksheet("result")
 

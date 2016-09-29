@@ -30,6 +30,32 @@
       $scope.historicalQueryResult = HistoricalQueryResult.storeQueryResult($scope.query.data_source_id, null, maxAge, $scope.query.id, $scope.query.query, $scope.query.getParameters());
     };
 
+    var getHistoricalQueryResultByTimeRange = function() {
+      $scope.showLog = false;
+      $scope.historicalQueryResult = HistoricalQueryResult.storeQueryResult(
+          $scope.query.data_source_id, null, -1, $scope.query.id, 
+          $scope.query.query, $scope.query.getParameters(), 
+          $scope.historicalQueryResult.getTimeRangeParameters().getValues());
+    };
+    
+
+    $scope.executeQueryByTimeRange = function() {
+      if (!$scope.canExecuteQuery()) {
+        return;
+      }
+
+      if (!$scope.query.query) {
+        return;
+      }
+
+      getHistoricalQueryResultByTimeRange();
+      $scope.lockButton(true);
+      $scope.cancelling = false;
+      Events.record(currentUser, 'execute and store', 'query', $scope.query.id);
+
+      notifications.getPermissions();
+    };
+
     var getDataSourceId = function() {
       // Try to get the query's data source id
       var dataSourceId = $scope.query.data_source_id;
@@ -106,6 +132,7 @@
       getHistoricalQueryResult();
     }
     $scope.queryExecuting = false;
+    $scope.historicalQueryResult = $scope.historicalQueryResult || new HistoricalQueryResult();
 
     $scope.isQueryOwner = (currentUser.id === $scope.query.user.id) || currentUser.hasPermission('admin');
     $scope.canViewSource = currentUser.hasPermission('view_source');
@@ -190,6 +217,11 @@
       $scope.cancelling = true;
       $scope.queryResult.cancelExecution();
       Events.record(currentUser, 'cancel_execute', 'query', $scope.query.id);
+    };
+
+    $scope.cancelExecutionStoreJob = function() {
+      $scope.cancelling = true;
+      $scope.historicalQueryResult.cancelExecution();
     };
 
     $scope.archiveQuery = function(options, data) {
@@ -283,6 +315,26 @@
       }
     });
 
+    $scope.$watch("historicalQueryResult && historicalQueryResult.getStatus()", function(status) {
+      if (!status) {
+        return;
+      }
+
+      if (status == 'done') {
+        notifications.showNotification("Re:dash", $scope.query.name + " stored.");
+      } else if (status == 'failed') {
+        notifications.showNotification("Re:dash", $scope.query.name + " failed to store: " + $scope.historicalQueryResult.getError());
+      }
+
+      if (status === 'done' || status === 'failed') {
+        $scope.lockButton(false);
+      }
+
+      if ($scope.historicalQueryResult.getLog() != null) {
+          $scope.showLog = true;
+      }
+    });
+
     $scope.openVisualizationEditor = function(visualization) {
       function openModal() {
         $modal.open({
@@ -363,7 +415,6 @@
     };
 
     $scope.disableRefreshQueries = clientConfig.disableRefreshQueries;
-    $scope.historicalQueryResult = new HistoricalQueryResult();
 
     $scope.showEmbedDialog = function(query, visualization) {
       $modal.open({
@@ -376,6 +427,13 @@
         }]
       })
     }
+
+    $scope.hasReservedWord = function() {
+      var reserved_word = _.filter($scope.query.getParametersDefs(), function(param_def) {
+        return param_def['name'] === '__timestamp';
+      });
+      return reserved_word.length > 0;
+    };
 
     $scope.$watch(function() {
       return $location.hash()
@@ -390,10 +448,9 @@
       if (job_id !== undefined) {
         var maxAge = $location.search()['maxAge'] || -1;
         var parameters = $scope.query.getParameters();
-        var query_text = Mustache.render($scope.query.query, parameters.getValues());
 
         $scope.historicalQueryResult = HistoricalQueryResult.storeQueryResult($scope.query.data_source_id,
-            job_id, maxAge, $scope.query.id, query_text, parameters);
+            job_id, maxAge, $scope.query.id, $scope.query.query, parameters);
       }
     });
   };

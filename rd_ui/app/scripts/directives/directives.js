@@ -553,9 +553,6 @@
           });
           scope.show_time_range_form = scope.timestamp.length > 0 ? true : false;
         }, true);
-
-        scope.$watch('storingTimeRange.time_range_parameters', function() {
-        }, true);
       }
     }
   });
