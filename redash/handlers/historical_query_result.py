@@ -2,6 +2,7 @@ import json
 import csv
 import cStringIO
 import time
+import dateutil
 
 import pystache
 from flask import make_response, request, after_this_request
@@ -187,7 +188,7 @@ def join_historical_query_result(historical_query_result):
     for query_result in historical_query_result:
         query_result_dict = query_result.to_dict()
         for row in query_result_dict['data']['rows']:
-            row['data_timestamp'] = query_result_dict['data_timestamp']
+            row['data_timestamp'] = query_result_dict['data_timestamp'].replace(tzinfo=None)
             result['data']['rows'].append(row)
 
     return result
