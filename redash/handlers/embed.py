@@ -16,6 +16,7 @@ from redash.handlers.base import org_scoped_rule, record_event, get_object_or_40
 from redash.handlers.query_results import collect_query_parameters
 from redash.permissions import require_access, view_only
 from authentication import current_org
+from redash.handlers.historical_query_result import join_historical_query_result
 
 #
 # Run a parameterized query synchronously and return the result
@@ -117,6 +118,44 @@ def embed(query_id, visualization_id, org_slug=None):
                            client_config=json_dumps(client_config),
                            visualization=json_dumps(vis),
                            query_result=json_dumps(qr))
+
+
+
+@routes.route(org_scoped_rule('/embed_historical/query/<query_id>/visualization/<visualization_id>'), methods=['GET'])
+@login_required
+def embed_historical(query_id, visualization_id, org_slug=None):
+    query = models.Query.get_by_id_and_org(query_id, current_org)
+    require_access(query.groups, current_user, view_only)
+    vis = query.visualizations.where(models.Visualization.id == visualization_id).first()
+    qr = {}
+
+    if vis is not None:
+        vis = vis.to_dict()
+        qr = models.HistoricalQueryResult.get_historical_results_by_hash_and_org(gen_query_hash(query.query), current_org)
+        qr = join_historical_query_result(qr)
+    else:
+        abort(404, message="Visualization not found.")
+
+    record_event(current_org, current_user, {
+        'action': 'view',
+        'object_id': visualization_id,
+        'object_type': 'visualization',
+        'query_id': query_id,
+        'embed': True,
+        'referer': request.headers.get('Referer')
+    })
+
+    client_config = {}
+    client_config.update(settings.COMMON_CLIENT_CONFIG)
+
+    qr = project(qr, ('data', 'id', 'retrieved_at'))
+    vis = project(vis, ('description', 'name', 'id', 'options', 'query', 'type', 'updated_at'))
+    vis['query'] = project(vis['query'], ('created_at', 'description', 'name', 'id', 'latest_query_data_id', 'name', 'updated_at'))
+
+    return render_template("embed-historical.html",
+                           client_config=json_dumps(client_config),
+                           visualization=json_dumps(vis),
+                           historical_query_result=json_dumps(qr))
 
 
 

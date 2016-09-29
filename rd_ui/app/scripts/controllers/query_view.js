@@ -427,6 +427,18 @@
       })
     }
 
+    $scope.showEmbedHistoricalDialog = function(query, visualization) {
+      $modal.open({
+        templateUrl: '/views/dialogs/embed_code.html',
+        controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
+          $scope.close = function() {
+            $modalInstance.close();
+          }
+          $scope.embedUrl = basePath + 'embed_historical/query/' + query.id + '/visualization/' + visualization.id + '?api_key=' + query.api_key;
+        }]
+      })
+    }
+
     $scope.hasReservedWord = function() {
       var reserved_word = _.filter($scope.query.getParametersDefs(), function(param_def) {
         return param_def['name'] === '__timestamp';

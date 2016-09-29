@@ -41,10 +41,20 @@ angular.module('redash', [
       });
 
 
+      $routeProvider.when('/embed_historical/query/:queryId/visualization/:visualizationId', {
+        templateUrl: '/views/visualization-embed-historical.html',
+        controller: 'EmbedHistoricalCtrl',
+        reloadOnSearch: false
+      });
+      $routeProvider.otherwise({
+        redirectTo: '/embed_historical'
+      });
+
+
     }
   ])
    .controller('EmbedCtrl', ['$scope', function ($scope) {} ])
-   .controller('EmbeddedVisualizationCtrl', ['$scope', '$location', 'Query', 'QueryResult', 'HistoricalQueryResult',
+   .controller('EmbeddedVisualizationCtrl', ['$scope', '$location', 'Query', 'QueryResult',
      function ($scope, $location, Query, QueryResult) {
        $scope.showQueryDescription = $location.search()['showDescription'];
        $scope.embed = true;
@@ -52,6 +62,18 @@ angular.module('redash', [
        $scope.query = visualization.query;
        query = new Query(visualization.query);
        $scope.queryResult = new QueryResult({query_result: query_result});
-       $scope.queryHistoricalResult = new HistoricalQueryResult({historical_query_result: historical_query_result});
      }])
+   .controller('EmbedHistoricalCtrl', ['$scope', function ($scope) {} ])
+   .controller('EmbeddedHistoricalVisualizationCtrl', ['$scope', '$location', 'Query', 'QueryResult', 'HistoricalQueryResult',
+     function ($scope, $location, Query, QueryResult, HistoricalQueryResult) {
+       $scope.showQueryDescription = $location.search()['showDescription'];
+       $scope.embed = true;
+       $scope.visualization = historical_visualization;
+       $scope.query = historical_visualization.query;
+       query = new Query(historical_visualization.query);
+       $scope.historicalQueryResult = new HistoricalQueryResult({historical_query_result: historical_query_result});
+       console.log('%O', $scope.historicalQueryResult)
+       console.log('%O', $scope.visualization)
+     }])
+   ;
    ;

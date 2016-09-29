@@ -2,7 +2,7 @@
 <!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7" ng-app="redash" ng-controller='MainCtrl'> <![endif]-->
 <!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8" ng-app="redash" ng-controller='MainCtrl'> <![endif]-->
 <!--[if IE 8]>         <html class="no-js lt-ie9" ng-app="redash" ng-controller='MainCtrl'> <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" ng-app="redash" ng-controller='EmbedCtrl'> <!--<![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" ng-app="redash" ng-controller='EmbedHistoricalCtrl'> <!--<![endif]-->
 <head>
     <base href="{{base_href}}">
     <title ng-bind="'{{name}} | ' + pageTitle"></title>
@@ -73,9 +73,8 @@
 
 <script>
     var clientConfig = {{ client_config|safe }};
-    var visualization = {{ visualization|safe }};
-    var query_result = {{ query_result|safe }};
-    //var historical_query_result = {{ historical_query_result|safe }};
+    var historical_visualization = {{ visualization|safe }};
+    var historical_query_result = {{ historical_query_result|safe }};
 </script>
 
 </body>
