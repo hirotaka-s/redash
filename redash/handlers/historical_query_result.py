@@ -2,7 +2,8 @@ import json
 import csv
 import cStringIO
 import time
-import dateutil
+import dateutil.parser
+from dateutil.relativedelta import relativedelta
 
 import pystache
 from flask import make_response, request, after_this_request
@@ -15,7 +16,7 @@ from redash.permissions import require_permission, not_view_only, has_access, re
 from redash.handlers.base import BaseResource, get_object_or_404
 from redash.utils import collect_query_parameters, collect_parameters_from_request
 from redash.tasks.store_query import enqueue_store_task, StoreTask
-from .query_results import QueryResultResource
+from .query_results import QueryResultResource, enqueue_query
 from wsgiref.handlers import format_date_time
 import datetime
 
@@ -40,6 +41,23 @@ def store_historical_query_result(data_source, query_id, query_text, data_timest
         return {'job': store_job.to_dict()}
 
 
+def query_execute_and_store_result(data_source, query_id, time_range):
+    template_query_text = models.Query.get_by_id(query_id).query
+    timestamp_param = {}
+
+    timestamp_param['__timestamp'] = dateutil.parser.parse(time_range['execute_from'])
+    execute_to = dateutil.parser.parse(time_range['execute_to'])
+    execution_interval_hours = relativedelta(hours=time_range['execution_interval_hours'])
+
+    while timestamp_param['__timestamp'] <= execute_to:
+        query_text = pystache.render(template_query_text, timestamp_param)
+        query_job = enqueue_query(query_text, data_source, metadata={"Username": current_user.name, "Query ID": query_id})
+        store_job = enqueue_store_task(data_source, template_query_text, query_text, timestamp_param['__timestamp'], query_job.to_dict()['id'])
+        timestamp_param['__timestamp'] += execution_interval_hours
+
+    return {'job': store_job.to_dict()}
+    
+
 class HistoricalQueryResultListResource(BaseResource):
     def post(self):
         params = request.get_json(force=True)
@@ -49,6 +67,7 @@ class HistoricalQueryResultListResource(BaseResource):
         query_text = params.get('query_text', None)
         data_timestamp = params.get('data_timestamp', None)
         query_task_id = params.get('task_id', None)
+        time_range = params.get('time_range', None)
 
         data_source = models.DataSource.get_by_id_and_org(params.get('data_source_id'), self.current_org)
 
@@ -65,6 +84,9 @@ class HistoricalQueryResultListResource(BaseResource):
             'object_type': 'data_source',
             'query_id': query_id
         })
+
+        if time_range is not None and query_task_id is None:
+            return query_execute_and_store_result(data_source, query_id, time_range)
 
         return store_historical_query_result(data_source, query_id, query_text, data_timestamp, query_task_id, max_age)
 
@@ -203,4 +225,3 @@ class StoreJobResource(BaseResource):
     def delete(self, job_id):
         job = StoreTask(job_id=job_id)
         job.cancel()
-

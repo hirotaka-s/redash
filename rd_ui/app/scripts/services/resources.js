@@ -868,7 +868,7 @@
       this.deferred = $q.defer();
       this.job = {};
       this.historical_query_result = {};
-      this.status = "waiting";
+      this.status = "done";
 
       this.updatedAt = moment();
 
@@ -1169,15 +1169,20 @@
       return this.deferred.promise;
     }
 
-    HistoricalQueryResult.storeQueryResult = function (data_source_id, taskId, maxAge, queryId, query_text, parameters) {
+    HistoricalQueryResult.storeQueryResult = function (data_source_id, taskId, maxAge, queryId, query_text, parameters, time_range = null) {
       var historicalQueryResult = new HistoricalQueryResult();
       
       var data_timestamp = parameters.getValues()['__timestamp'];
-      
+            
       if (data_timestamp) {
-        var params = {'data_source_id': data_source_id, 'task_id': taskId, 'max_age': maxAge, 'data_timestamp': data_timestamp, 'query_text': query_text};
+        var params = {'data_source_id': data_source_id, 'task_id': taskId, 'max_age': maxAge, 'data_timestamp': data_timestamp, 'query_text': Mustache.render(query_text, parameters.getValues())
+};
         if (queryId !== undefined) {
           params['query_id'] = queryId;
+        };
+
+        if (time_range !== null) {
+          params['time_range'] = time_range;
         };
 
         console.log('%O', params);
@@ -1206,6 +1211,63 @@
       return;
     };
 
+    var TimeRangeParameters =  function(historicalQueryResult) {
+      this.historicalQueryResult = historicalQueryResult
+      this.time_range_parameters = [
+        {
+          'title': 'Execute from',
+          'name': 'execute_from',
+          'type': 'datetime-local',
+          'value': ''
+        },
+        {
+          'title': 'to',
+          'name': 'execute_to',
+          'type': 'datetime-local',
+          'value': ''
+        },
+        {
+          'title': 'Execution interval hours',
+          'name': 'execution_interval_hours',
+          'type': 'number',
+          'value': 24
+        }
+      ];
+    };
+
+    TimeRangeParameters.prototype.get = function() {
+      return this.time_range_parameters;
+    };
+
+    TimeRangeParameters.prototype.getValues = function() {
+      var params = this.get();
+      return _.object(_.pluck(params, 'name'), _.pluck(params, 'value'));
+    };
+
+    TimeRangeParameters.prototype.isValid = function() {
+      var params = this.get();
+      var get_value_by_name = function(name, params) {
+        var param = _.filter(params, function(p) {
+          return p.name === name;
+        });
+        return param[0].value;
+      };
+
+      var from = moment(get_value_by_name('execute_from', params));
+      var to = moment(get_value_by_name('execute_to', params));
+      var interval = get_value_by_name('execution_interval_hours', params);
+
+      return ((from < to) && (interval > 0) && (from.add(interval, 'hours') <= to)); 
+    };
+
+    HistoricalQueryResult.prototype.getTimeRangeParameters = function() {
+      if (!this.$time_range_parameters) {
+        this.$time_range_parameters = new TimeRangeParameters(this);
+      }
+
+      return this.$time_range_parameters;
+    }
+    
     return HistoricalQueryResult;
   };
 
